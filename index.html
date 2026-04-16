@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calcium Crisis — Interactive Homeostasis Review Game</title>
+  <meta name="description" content="An interactive 3-level game teaching calcium homeostasis through clinical scenarios. Built for biology education." />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #020617; min-height: 100vh; }
+    #root { min-height: 100vh; }
+  </style>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+
+/*
+ * CALCIUM CRISIS — Interactive Homeostasis Review Game
+ * 3-Level Progressive Unlock System
+ *   Level 1: PTH vs Calcitonin (binary choice)
+ *   Level 2: Add Vitamin D as third button
+ *   Level 3: Identify where the feedback loop is broken
+ */
+
+// ─── Glossary ────────────────────────────────────────────────────────────────
+const GLOSSARY = [
+  { term: "PTH (Parathyroid Hormone)", def: "Hormone released by the parathyroid glands when blood calcium is LOW. It raises calcium by pulling it from bones, saving it in kidneys, and activating Vitamin D.", related: ["Parathyroid Glands", "Calcium"] },
+  { term: "Calcitonin", def: "Hormone released by the thyroid gland when blood calcium is HIGH. It lowers calcium by pushing it into bones and increasing kidney excretion. Plays a smaller, fine-tuning role compared to PTH.", related: ["Calcium", "Thyroid"] },
+  { term: "Vitamin D", def: "A nutrient the body makes from sunlight (or gets from food/supplements). Must be activated by the liver then kidneys before it works. The active form tells the intestines to absorb calcium.", related: ["Kidneys", "Calcium"] },
+  { term: "Calcium (Ca²⁺)", def: "A mineral essential for muscle contraction, nerve signaling, and bone strength. Normal blood level: 8.5 to 10.5 mg/dL. Too high or too low is dangerous.", related: ["PTH", "Calcitonin"] },
+  { term: "Parathyroid Glands", def: "Four tiny glands behind the thyroid in the neck. They sense blood calcium levels and release PTH when calcium drops. They are the SENSOR in the feedback loop.", related: ["PTH", "Feedback Loop"] },
+  { term: "Feedback Loop", def: "A cycle where the body detects a change, responds to correct it, then monitors the result. In calcium homeostasis: sensor (parathyroids) → signal (PTH) → effectors (kidneys, intestines, bones) → calcium normalizes → sensor detects the change → loop repeats.", related: ["Homeostasis"] },
+  { term: "Homeostasis", def: "The body's ability to maintain stable internal conditions (like blood calcium, temperature, pH) despite changing external conditions.", related: ["Feedback Loop"] },
+  { term: "Adenoma", def: "A benign (non-cancerous) tumor. A parathyroid adenoma produces too much PTH, causing calcium to rise uncontrollably.", related: ["Parathyroid Glands", "PTH"] },
+  { term: "Diuretic", def: "A medication that increases urine production. Loop diuretics (like furosemide/Lasix) flush calcium OUT. Thiazide diuretics (like hydrochlorothiazide) keep calcium IN. Opposite effects on calcium.", related: ["Kidneys", "Calcium"] },
+  { term: "Rickets", def: "Softening and weakening of bones in children, usually caused by severe Vitamin D deficiency. The bones do not get enough calcium to harden properly.", related: ["Vitamin D", "Calcium"] },
+  { term: "Alkaline Phosphatase", def: "An enzyme found in bones and liver. High levels in blood suggest increased bone activity (either building or breaking down). Used as a lab marker for bone disease.", related: ["Bones"] },
+  { term: "Celiac Disease", def: "An autoimmune condition where gluten damages the intestinal lining, reducing absorption of nutrients including Vitamin D and calcium.", related: ["Intestines", "Vitamin D"] },
+  { term: "PPI (Proton Pump Inhibitor)", def: "A medication that blocks stomach acid production (e.g., omeprazole). Long-term use reduces calcium absorption because stomach acid is needed to dissolve calcium from food.", related: ["Calcium", "Diuretic"] },
+  { term: "Prednisone / Steroids", def: "Anti-inflammatory medications used for asthma, arthritis, and autoimmune diseases. Long-term use reduces calcium absorption in the intestines and increases calcium loss through the kidneys, silently thinning bones.", related: ["Calcium", "Bones"] },
+  { term: "DiGeorge Syndrome", def: "A genetic condition where the parathyroid glands (and other structures) fail to develop. Without parathyroids, there is no PTH, and the entire calcium feedback loop is silent from birth.", related: ["Parathyroid Glands", "PTH"] },
+];
+
+// ─── Level 1 Scenarios (PTH vs Calcitonin) ─────────────────────────────────
+const BASELINE = {
+  id: 0, title: "Normal Day: Baseline", emoji: "⚖️",
+  desc: "Balanced meals, normal activity. Blood calcium sits right in the middle of the healthy range.",
+  effect: 0, correct: "none", baseline: true,
+  why: "When Ca²⁺ is in the normal range (8.5–10.5 mg/dL), neither PTH nor calcitonin is dominant. The system is at equilibrium. This is what you are trying to restore in every other scenario.",
+  organs: { kidneys: "routine filtration", gut: "steady absorption", bones: "balanced remodeling", vitD: "maintenance level" },
+};
+
+const SCENARIOS_L1 = [
+  {
+    id: 1, title: "Big Glass of Milk", emoji: "🥛",
+    desc: "Calcium flooding in from the intestines after a tall glass of milk.",
+    effect: +1.8, correct: "calcitonin",
+    why: "High blood Ca²⁺ → calcitonin signals bones to store it and kidneys to excrete excess. Vitamin D stays off because there is no need to absorb more. This is normal homeostasis handling a dietary load.",
+    organs: { kidneys: "Ca²⁺ → excreted", gut: "no change", bones: "Ca²⁺ → stored", vitD: "inactive" },
+  },
+  {
+    id: 2, title: "Skipped Meals All Day", emoji: "😫",
+    desc: "Priya, a nursing student working double shifts, skipped dinner and breakfast. Her body has been burning through Ca²⁺ for muscles and nerves.",
+    effect: -1.6, correct: "pth",
+    why: "Low blood Ca²⁺ → PTH pulls Ca²⁺ from bones, reclaims it in kidneys, and activates Vitamin D to boost intestinal absorption.",
+    counselQ: "Priya skips meals because of work, not choice. How would you screen for food insecurity in a clinical setting? What calcium-friendly foods are affordable and accessible?",
+    organs: { kidneys: "Ca²⁺ saved + Vit D activated", gut: "absorption ↑↑", bones: "Ca²⁺ released", vitD: "ACTIVE" },
+  },
+  {
+    id: 3, title: "Loop Diuretic (Lasix)", emoji: "💉",
+    desc: "Mr. Delgado, 68, a Spanish-speaking immigrant, just started furosemide for heart failure. The drug is flushing calcium out through his kidneys.",
+    effect: -1.6, correct: "pth",
+    why: "Low blood Ca²⁺ → Loop diuretics force the kidneys to dump calcium into the urine. PTH compensates by pulling Ca²⁺ from bones and activating Vitamin D. Long-term: monitor blood Ca²⁺, PTH, and bone density.",
+    counselQ: "Mr. Delgado needs regular lab monitoring, but he has no car, limited insurance, and his discharge instructions were in English. How do language and access barriers compound drug side effects?",
+    organs: { kidneys: "reabsorption blocked + Vit D activated", gut: "absorption ↑", bones: "Ca²⁺ released", vitD: "ACTIVE" },
+  },
+  {
+    id: 4, title: "Calcium Supplement", emoji: "💊",
+    desc: "1000 mg calcium carbonate just hit the bloodstream. Ca²⁺ is spiking.",
+    effect: +2.0, correct: "calcitonin",
+    why: "High blood Ca²⁺ → calcitonin pushes the excess into bone storage and increases kidney excretion. Vitamin D stays suppressed. Normal homeostasis efficiently handles supplemental loads.",
+    organs: { kidneys: "Ca²⁺ → excreted", gut: "absorption ↓", bones: "Ca²⁺ → stored", vitD: "inactive" },
+  },
+  {
+    id: 5, title: "Vitamin D Deficiency", emoji: "🌧️",
+    desc: "Northern climate, rarely outside. Intestinal cells lack Vitamin D to transport calcium.",
+    effect: -1.8, correct: "pth",
+    why: "Low blood Ca²⁺ → Without Vitamin D, the intestines cannot absorb Ca²⁺. PTH rises to pull from bones and activate whatever Vitamin D precursors remain. Chronic PTH elevation weakens bones. Supplementation (600–2000 IU/day depending on severity) is evidence-based. Important context: Vitamin D synthesis varies by UV exposure, geography, season, and skin tone, meaning people in northern latitudes, indoor workers, and those with limited food access are disproportionately affected.",
+    organs: { kidneys: "Vit D activated (limited precursors)", gut: "absorption impaired", bones: "Ca²⁺ released (chronic = damage)", vitD: "LOW SUPPLY" },
+  },
+  {
+    id: 6, title: "Sunny Beach Day", emoji: "☀️",
+    desc: "Hours of UV-B triggered Vitamin D synthesis. Combined with a calcium-rich lunch, blood Ca²⁺ is climbing.",
+    effect: +1.6, correct: "calcitonin",
+    why: "High blood Ca²⁺ → Sunlight + food = Ca²⁺ surplus. Calcitonin deposits it into bones and dumps excess in urine.",
+    organs: { kidneys: "excess Ca²⁺ → appropriately excreted", gut: "absorption optimized (Vit D active)", bones: "Ca²⁺ → stored", vitD: "inactive (not needed now)" },
+  },
+  {
+    id: 7, title: "Cheese Pizza Party", emoji: "🍕",
+    desc: "Three large cheese pizzas. Mozzarella is delivering a massive calcium load.",
+    effect: +1.5, correct: "calcitonin",
+    why: "High blood Ca²⁺ → Calcitonin slows down bone breakdown and promotes bone storage. Kidneys excrete the surplus. Note: dairy is not the only Ca²⁺ source. Leafy greens, tortillas made with lime, fortified foods, and supplements also contribute.",
+    organs: { kidneys: "Ca²⁺ → excreted", gut: "no change", bones: "Ca²⁺ → stored", vitD: "inactive" },
+  },
+  {
+    id: 8, title: "Post-Thyroidectomy", emoji: "🏥",
+    desc: "Mrs. Okafor, 45, just had her thyroid removed for cancer. The nearby parathyroid glands were accidentally damaged during surgery. She reports tingling fingers and lips.",
+    effect: -2.0, correct: "pth", urgent: true,
+    why: "🚨 MEDICAL EMERGENCY. Surgical damage to the parathyroid glands (small glands behind the thyroid) = PTH crash = dangerously low calcium. Watch for facial twitching when the cheek is tapped and hand spasms when a blood pressure cuff is inflated. Immediate treatment: IV calcium. Long-term: monitor calcium, PTH, bone density; oral calcium + Vitamin D supplementation.",
+    counselQ: "Surgical complication rates vary by hospital resources. How might Mrs. Okafor's outcome differ at an under-funded facility with less post-operative monitoring?",
+    organs: { kidneys: "Ca²⁺ loss ↑ + no Vit D activation", gut: "absorption ↓↓", bones: "Ca²⁺ locked (no PTH signal)", vitD: "INACTIVE (no PTH to activate)" },
+  },
+  {
+    id: 9, title: "Melanin & Vitamin D", emoji: "🧬",
+    desc: "Amara, 20, moved from Nairobi to Seattle for college. Her darker skin + limited Pacific Northwest sun = less Vitamin D.",
+    effect: -1.7, correct: "pth",
+    why: "Low blood Ca²⁺ → Melanin can reduce Vitamin D synthesis by 40–75% depending on skin tone; at northern latitudes, production drops further. PTH rises to pull Ca²⁺ from bones. Supplementation (600–2000 IU/day depending on baseline levels) is evidence-based and equity-informed. This reflects real health inequities: melanin protects from UV damage but reduces Vitamin D synthesis at higher latitudes, contributing to disproportionate osteoporosis risk in dark-skinned populations.",
+    organs: { kidneys: "Vit D activated (limited supply)", gut: "absorption impaired", bones: "Ca²⁺ released (chronic risk)", vitD: "LOW (melanin + latitude)" },
+  },
+  {
+    id: 10, title: "Sunscreen & Indoor Life", emoji: "🏢",
+    desc: "Kevin, a warehouse worker on night shifts, rarely sees daylight and wears SPF 50 when he does. Minimal UV-B exposure regardless of skin tone.",
+    effect: -1.3, correct: "pth",
+    why: "Low blood Ca²⁺ → SPF 30+ blocks ~97–99% of UV-B. Affects everyone; compounds with higher melanin. PTH taps bone reserves. Supplementation recommended.",
+    counselQ: "Kevin works nights and never sees daylight. Night-shift workers are rarely screened for Vitamin D. How does occupation become a calcium equity issue?",
+    organs: { kidneys: "Vit D activated (limited)", gut: "absorption impaired", bones: "Ca²⁺ released", vitD: "LOW (no UV-B)" },
+  },
+];
+
+// ─── Level 2 Scenarios (PTH vs Calcitonin vs Vitamin D) ─────────────────────
+// Some scenarios require Vitamin D supplementation as the primary intervention
+const BASELINE_L2 = {
+  id: 0, title: "Normal Day: Baseline", emoji: "⚖️",
+  desc: "Balanced diet, some sun exposure. Vitamin D levels are adequate, Ca²⁺ homeostasis is working smoothly.",
+  effect: 0, correct: "none", baseline: true,
+  why: "With adequate Vitamin D, the intestines absorb Ca²⁺ efficiently. PTH and calcitonin make fine adjustments. This is the three-way balance you are trying to maintain.",
+  organs: { kidneys: "routine filtration + Vit D maintained", gut: "steady absorption (Vit D-dependent)", bones: "balanced remodeling", vitD: "adequate" },
+};
+
+const SCENARIOS_L2 = [
+  {
+    id: 201, title: "Rickets in a Toddler", emoji: "👶",
+    desc: "Jaylen, 18 months old, has bowed legs and soft skull bones. Lab shows very low Vitamin D and low-normal Ca²⁺. His intestines simply cannot absorb enough calcium.",
+    effect: -1.8, correct: "vitd",
+    why: "This is a Vitamin D deficiency problem, not a PTH problem. PTH is already elevated (compensating), but without Vitamin D the intestines cannot absorb Ca²⁺ efficiently. Supplementation with Vitamin D (+ calcium) is the primary treatment. PTH would just pull more from already-soft bones. Rickets disproportionately affects breastfed infants with dark skin in northern climates, and communities with limited fortified food access.",
+    organs: { kidneys: "Vit D activation maxed out", gut: "absorption critically low", bones: "softening (weak bones)", vitD: "DEFICIENT → supplement" },
+  },
+  {
+    id: 202, title: "Chronic Kidney Disease", emoji: "🫘",
+    desc: "Ms. Tran, 58, a Vietnamese immigrant with limited English, has severe kidney disease. Her kidneys cannot convert Vitamin D to its active form. Blood Ca²⁺ dropping despite elevated PTH.",
+    effect: -1.9, correct: "vitd",
+    why: "The kidneys cannot activate Vitamin D, so the intestines cannot absorb Ca²⁺ no matter how high PTH goes. Treatment: give the already-activated form of Vitamin D, which bypasses the broken kidney step entirely.",
+    counselQ: "Chronic kidney disease is more common in Black and Latino communities. Ms. Tran's biology is the same as any patient's, but her access to dialysis depends on geography and insurance. How do outcomes diverge?",
+    organs: { kidneys: "activation BROKEN", gut: "absorption failing", bones: "PTH pulling reserves (bone weakening)", vitD: "NEEDS ACTIVE FORM" },
+  },
+  {
+    id: 203, title: "Post-Bariatric Surgery", emoji: "⚕️",
+    desc: "Rosa, 34, is 6 months post gastric bypass. Vitamin absorption is impaired because part of her intestine was bypassed. Ca²⁺ trending down despite eating well.",
+    effect: -1.5, correct: "vitd",
+    why: "Gastric bypass removes part of the intestine where vitamins like D are absorbed. Without adequate Vitamin D, intestinal Ca²⁺ absorption drops. Lifelong Vitamin D + calcium supplementation is standard of care. PTH is already compensating; adding more would just damage bones.",
+    counselQ: "Rosa's surgery was one day; her calcium management is lifelong. What happens when patients lose insurance or move away from their specialist?",
+    organs: { kidneys: "Vit D activation normal", gut: "vitamin absorption ↓↓ (surgery)", bones: "Ca²⁺ being pulled", vitD: "MALABSORBED → high-dose supplement" },
+  },
+  {
+    id: 204, title: "Elderly Homebound Patient", emoji: "🏠",
+    desc: "Mr. Washington, 82, rarely leaves his apartment. His aging skin produces much less Vitamin D than it used to. Ca²⁺ at low end of normal.",
+    effect: -1.4, correct: "vitd",
+    why: "Aging skin produces ~50–75% less Vitamin D₃ than young skin. Combined with indoor lifestyle, Vitamin D levels plummet. Supplementation (Vitamin D + calcium) prevents osteoporotic fractures. This is preventive medicine, not acute correction. Elderly isolation, mobility limitations, and fixed incomes create compounding barriers to Vitamin D adequacy; institutionalized and low-income elderly are at highest risk.",
+    organs: { kidneys: "activation working but low substrate", gut: "absorption impaired", bones: "gradually thinning", vitD: "LOW (age + no sun)" },
+  },
+  {
+    id: 205, title: "Calcium Supplement Overdose", emoji: "💊💊",
+    desc: "Patient self-medicating with 3x recommended calcium dose. Ca²⁺ spiking dangerously high.",
+    effect: +2.2, correct: "calcitonin",
+    why: "High blood Ca²⁺ → This is an excess calcium problem, not a Vitamin D issue. Calcitonin pushes Ca²⁺ into bones and increases renal excretion. Vitamin D would make it worse by increasing absorption.",
+    counselQ: "This patient self-medicated based on social media advice because they could not afford a doctor. How should dosing education be delivered to reach patients with low health literacy?",
+    organs: { kidneys: "excreting excess Ca²⁺", gut: "overloaded", bones: "storing surplus", vitD: "should be suppressed" },
+  },
+  {
+    id: 206, title: "Hyperparathyroidism", emoji: "🔴",
+    desc: "Parathyroid adenoma pumping out excess PTH. Blood Ca²⁺ dangerously high. Bones aching.",
+    effect: +2.0, correct: "calcitonin",
+    why: "High blood Ca²⁺ → The problem IS excess PTH from a tumor. More PTH would be catastrophic. Calcitonin helps acutely by opposing PTH's bone-resorbing effects. Definitive treatment: surgical removal of the adenoma.",
+    organs: { kidneys: "overworked reabsorbing Ca²⁺", gut: "Vit D overactive (PTH-driven)", bones: "being dissolved by excess PTH", vitD: "inappropriately high" },
+  },
+  {
+    id: 207, title: "Celiac Disease Diagnosis", emoji: "🌾",
+    desc: "Sofia, 28, was just diagnosed with celiac disease. Her damaged intestinal lining cannot absorb vitamins properly. Ca²⁺ slowly declining.",
+    effect: -1.6, correct: "vitd",
+    why: "Celiac disease damages the intestinal lining, blocking absorption of vitamins like D. Without Vitamin D, the intestines cannot absorb calcium. Treatment: gluten-free diet + Vitamin D supplementation until the lining heals. PTH is already elevated and compensating.",
+    counselQ: "Celiac disease is underdiagnosed in non-white populations because it was historically seen as a 'European' condition. How do diagnostic biases lead to preventable bone loss?",
+    organs: { kidneys: "Vit D activation normal", gut: "villi damaged → malabsorption", bones: "Ca²⁺ being pulled", vitD: "MALABSORBED → supplement" },
+  },
+  {
+    id: 208, title: "Thiazide Diuretic", emoji: "💧",
+    desc: "Mrs. Johnson, 55, started hydrochlorothiazide for high blood pressure. Unlike loop diuretics, this drug retains calcium. Her Ca²⁺ is creeping up.",
+    effect: +1.4, correct: "calcitonin",
+    why: "High blood Ca²⁺ → Thiazides increase renal Ca²⁺ reabsorption (opposite of loop diuretics!). Calcitonin compensates by promoting bone storage and excretion through other pathways. Important drug distinction for clinical practice.",
+    organs: { kidneys: "retaining Ca²⁺ (thiazide effect)", gut: "no change", bones: "Ca²⁺ → stored", vitD: "no change needed" },
+  },
+  {
+    id: 209, title: "Breastfed Infant in Winter", emoji: "🍼",
+    desc: "Baby Lucia, 4 months old, is exclusively breastfed in Minnesota in January. Breast milk is low in Vitamin D. Her Ca²⁺ is borderline low.",
+    effect: -1.3, correct: "vitd",
+    why: "Breast milk contains very little Vitamin D (~25 IU/L vs recommended 400 IU/day). In winter at northern latitudes, infant skin makes negligible D. AAP recommends 400 IU/day Vitamin D drops for all breastfed infants. This prevents rickets.",
+    counselQ: "Whether a parent learns about Vitamin D drops depends on pediatrician access, well-baby visit affordability, and language. What happens when this counseling is missing?",
+    organs: { kidneys: "immature but functional", gut: "needs Vit D to absorb Ca²⁺", bones: "growing rapidly, high demand", vitD: "DEFICIENT → drops recommended" },
+  },
+  {
+    id: 210, title: "PPI and Calcium", emoji: "💊",
+    desc: "Mr. Rivera, 72, a retired farmworker who speaks mostly Spanish, has been on omeprazole (a stomach acid blocker) for 8 years. Ca²⁺ slowly declining. He recently fractured his hip from a minor fall.",
+    effect: -1.5, correct: "vitd",
+    why: "Stomach acid is needed to dissolve calcium from food. Long-term acid blockers reduce calcium absorption in the intestines. Vitamin D supplementation plus switching to calcium citrate (which does not need acid to dissolve) is the standard approach.",
+    counselQ: "Mr. Rivera was never told his heartburn medication could weaken his bones. How should medication side effects be communicated to older patients on multiple drugs?",
+    organs: { kidneys: "Vit D activation normal", gut: "acid suppressed → Ca²⁺ absorption impaired", bones: "thinning (fracture risk)", vitD: "SUPPLEMENT + switch Ca²⁺ form" },
+  },
+  {
+    id: 211, title: "Steroid-Induced Bone Loss", emoji: "🫁",
+    desc: "Guadalupe, 48, has taken prednisone for asthma for 3 years. Ca²⁺ = 8.8 (low-normal) but bone density scan shows significant thinning. The bones are losing calcium silently.",
+    effect: -1.4, correct: "vitd",
+    why: "Steroids like prednisone reduce intestinal calcium absorption and increase kidney calcium loss. Bones thin silently over months to years. Vitamin D + calcium supplementation is recommended for anyone on long-term steroids. PTH is compensating but accelerating bone loss.",
+    counselQ: "Guadalupe needs her asthma medication but it is quietly destroying her bones. Patients on long-term steroids are often not told about bone protection. How would you counsel her?",
+    organs: { kidneys: "excreting more Ca²⁺ (steroid effect)", gut: "absorption reduced by steroids", bones: "thinning silently", vitD: "SUPPLEMENT to counteract steroid effects" },
+  },
+];
+
+// ─── Level 3 Scenarios (Feedback Loop Disruption — identify broken component) ─
+const BASELINE_L3 = {
+  id: 0, title: "Healthy Feedback Loop", emoji: "🔄",
+  desc: "All components of the calcium feedback loop are functioning. Ca²⁺ is sensed, hormones respond, organs execute. The loop is intact.",
+  effect: 0, correct: "none", baseline: true,
+  why: "A healthy feedback loop: parathyroids sense low Ca²⁺ → release PTH → kidneys activate Vit D + save Ca²⁺ → intestines absorb more → bones release reserves → Ca²⁺ rises → parathyroids stop. Every component matters.",
+  organs: { kidneys: "activating Vit D, filtering Ca²⁺", gut: "absorbing Ca²⁺ (Vit D-dependent)", bones: "balanced remodeling", vitD: "regulated by PTH" },
+};
+
+const SCENARIOS_L3 = [
+  {
+    id: 301, title: "Fatigue, Stones & Bone Pain", emoji: "🔴",
+    desc: "Maria, 52, presents with fatigue, kidney stones, and bone pain. Labs: Ca²⁺ = 12.8, PTH = 180 (should be suppressed at this Ca²⁺). Why is the system not shutting off?",
+    effect: +2.2, correct: "parathyroid",
+    why: "The parathyroid glands are the SENSOR in this loop. An adenoma makes them ignore high Ca²⁺ and keep secreting PTH. The loop is broken at the sensing step. Everything downstream (bones releasing, kidneys saving, Vit D activating) is working 'correctly' but getting the wrong signal.",
+    organs: { kidneys: "overactivating Vit D + saving Ca²⁺", gut: "absorbing too much", bones: "dissolving (bone-breakdown cells overactive)", vitD: "inappropriately high" },
+    broken: "parathyroid",
+  },
+  {
+    id: 302, title: "Dialysis Patient, PTH Sky-High", emoji: "🫘",
+    desc: "Mr. Williams, 64, is on dialysis for kidney failure. Ca²⁺ = 7.2, PTH = 800. PTH is sky-high but nothing is improving. The usual downstream response is not happening.",
+    effect: -2.0, correct: "kidneys",
+    why: "The KIDNEYS are broken. They cannot activate Vitamin D (the enzyme that does this is missing) and cannot reabsorb Ca²⁺ efficiently. PTH keeps rising because Ca²⁺ stays low, but the organ that should respond is non-functional. The sensor works, but the downstream organ does not.",
+    counselQ: "Black Americans are nearly 4x more likely to develop kidney failure, yet less likely to receive a transplant. When kidneys fail, calcium fails too. How is kidney disease a social justice issue?",
+    organs: { kidneys: "FAILED: cannot activate Vit D or save Ca²⁺", gut: "no active Vit D → cannot absorb", bones: "being destroyed by chronic high PTH", vitD: "cannot be activated" },
+    broken: "kidneys",
+  },
+  {
+    id: 303, title: "Supplements Are Not Working", emoji: "🌾",
+    desc: "Aisha, 35, has chronic bloating and diarrhea. Ca²⁺ = 8.0, Vit D low despite supplementation, PTH elevated. Her supplements are not being absorbed.",
+    effect: -1.6, correct: "gut",
+    why: "The INTESTINES are broken. Celiac disease destroys the absorptive surface. Even with adequate Vitamin D and PTH signaling, the intestinal cells cannot transport Ca²⁺. The signal is fine, but the receiver is damaged.",
+    counselQ: "Average time to celiac diagnosis: 6 to 10 years, longer in communities where providers do not consider it. What does years of undiagnosed malabsorption mean for Aisha's bones?",
+    organs: { kidneys: "working normally, activating Vit D", gut: "BROKEN: villi destroyed, cannot absorb", bones: "Ca²⁺ being pulled (PTH compensation)", vitD: "adequate but intestines cannot respond" },
+    broken: "gut",
+  },
+  {
+    id: 304, title: "Enlarged Skull & High Alk Phos", emoji: "🦴",
+    desc: "Mr. Nakamura, 70, has localized pain, an enlarged skull, and elevated alkaline phosphatase. Ca²⁺ = 11.5. Something is releasing excess Ca²⁺ regardless of hormonal signals. The hormones are responding correctly, but the problem is downstream.",
+    effect: +1.8, correct: "bones",
+    why: "The BONES are broken. In Paget disease, bone-breakdown cells are overactive and disorganized. They do not respond normally to hormonal signals. Bones release Ca²⁺ chaotically regardless of what PTH or calcitonin say. The organ has gone rogue.",
+    organs: { kidneys: "excreting excess Ca²⁺", gut: "normal", bones: "BROKEN: chaotic remodeling, ignoring signals", vitD: "appropriately suppressed" },
+    broken: "bones",
+  },
+  {
+    id: 305, title: "Infant with Seizures & No PTH", emoji: "🧬",
+    desc: "Baby Isaiah, born to a recently immigrated family with no established pediatrician. He has cardiac defects and seizures. Ca²⁺ = 6.5, PTH undetectable. Genetic testing reveals a chromosomal deletion. The entire downstream cascade is silent.",
+    effect: -2.2, correct: "parathyroid",
+    why: "The PARATHYROID GLANDS are missing. They failed to develop due to a genetic deletion (DiGeorge syndrome). No sensor = no PTH = no signal to kidneys, bones, or Vit D. The entire downstream cascade is silenced because the loop has no starting point. Treatment: lifelong calcium + active Vitamin D. Diagnosis requires genetic testing that may be delayed in under-resourced settings due to insurance barriers and provider awareness gaps, leading to prolonged untreated low calcium.",
+    organs: { kidneys: "no PTH signal → Ca²⁺ lost", gut: "no Vit D activation → poor absorption", bones: "no PTH → Ca²⁺ locked in", vitD: "INACTIVE (no PTH to trigger)" },
+    broken: "parathyroid",
+  },
+  {
+    id: 306, title: "High PTH, No Response", emoji: "🔇",
+    desc: "Daniela, 16, has short stature and a round face. Ca²⁺ = 7.0, PTH = 250. Her body is making plenty of PTH, but the downstream targets do not seem to respond. The signal is being sent, but nothing happens.",
+    effect: -1.8, correct: "kidneys",
+    why: "The KIDNEYS (and bones) are broken at the receptor level. They have a defective PTH receptor (a genetic mutation). PTH is being produced, but the target organs cannot respond. The signal is sent but not received. The organs are resistant, not the hormone.",
+    organs: { kidneys: "BROKEN: PTH receptor defective, cannot respond", gut: "no Vit D → poor absorption", bones: "PTH receptor defective", vitD: "cannot be activated by kidneys" },
+    broken: "kidneys",
+  },
+  {
+    id: 307, title: "Post-Surgery, Ca²⁺ Still Low", emoji: "⚕️",
+    desc: "Marcus, 42, is 2 years post weight-loss surgery (Roux-en-Y bypass). Ca²⁺ = 7.8 despite oral supplements. PTH = 120, Vit D adequate after high-dose supplementation. His Ca²⁺ still will not come up.",
+    effect: -1.5, correct: "gut",
+    why: "The INTESTINES are broken. Surgical rerouting bypassed the part of the intestine where most Ca²⁺ absorption occurs. Even with adequate Vitamin D, the physical absorptive surface is gone. Treatment: higher-dose calcium citrate (better absorbed than carbonate) + monitoring.",
+    counselQ: "Marcus needs specialty follow-up, lab monitoring, and supplements for life. What happens to patients who lose insurance after surgery or live far from a specialist?",
+    organs: { kidneys: "working, saving Ca²⁺", gut: "BROKEN: absorptive surface bypassed", bones: "Ca²⁺ slowly depleting", vitD: "adequate (supplemented)" },
+    broken: "gut",
+  },
+  {
+    id: 308, title: "Cancer Patient, Ca²⁺ Spiking", emoji: "🏥",
+    desc: "Mr. Chen, 61, has metastatic lung cancer. Ca²⁺ = 13.5, PTH suppressed. Calcium is rising uncontrollably despite appropriate hormonal suppression. Where is the extra Ca²⁺ coming from?",
+    effect: +2.4, correct: "bones",
+    why: "The BONES are broken. Tumor cells have invaded and are directly triggering bone breakdown through tumor-produced signals. Normal hormonal regulation cannot override the tumor. Treatment: IV medication to stop bone breakdown + treat underlying cancer.",
+    counselQ: "Late-stage cancer diagnoses are more common in uninsured populations. If Mr. Chen had been screened earlier, the tumor might never have reached his bones. How is screening access a calcium issue?",
+    organs: { kidneys: "overwhelmed excreting Ca²⁺", gut: "absorption normal", bones: "BROKEN: tumor-driven destruction", vitD: "suppressed (high Ca²⁺)" },
+    broken: "bones",
+    urgent: true,
+  },
+  {
+    id: 309, title: "Rickets Despite Sunshine", emoji: "🧪",
+    desc: "Fatima, 3, has rickets despite adequate sun exposure. Ca²⁺ = 7.5, the inactive form of Vitamin D is normal, but the active form is very low. Something is blocking the activation step.",
+    effect: -1.7, correct: "kidneys",
+    why: "The KIDNEYS are broken at the enzyme level. They lack the enzyme that converts inactive Vitamin D into its active form. The precursor is there but cannot be activated. Treatment: giving active Vitamin D directly bypasses the defective enzyme.",
+    counselQ: "Rare genetic diseases are diagnosed faster in families with access to specialists. Without genetic testing, Fatima might be treated for 'nutritional rickets' for years. How does access shape diagnosis?",
+    organs: { kidneys: "BROKEN: activating enzyme missing", gut: "no active Vit D → cannot absorb", bones: "softening (rickets)", vitD: "inactive form adequate, activation FAILED" },
+    broken: "kidneys",
+  },
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function barColor(ca) {
+  if (ca <= 7.5 || ca >= 12.5) return "#dc2626";
+  if (ca <= 8.5 || ca >= 10.5) return "#f59e0b";
+  return "#22c55e";
+}
+function zoneLabel(ca) {
+  if (ca <= 7.5) return "⚠️ HYPOCALCEMIA";
+  if (ca <= 8.5) return "LOW";
+  if (ca >= 12.5) return "⚠️ HYPERCALCEMIA";
+  if (ca >= 10.5) return "HIGH";
+  return "✓ NORMAL";
+}
+
+// ─── Sound Effects (Web Audio API, no external files) ────────────────────────
+const SFX = (() => {
+  let ctx = null;
+  const getCtx = () => {
+    if (!ctx) try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* silent fallback */ }
+    return ctx;
+  };
+  const play = (fn) => { const c = getCtx(); if (c) try { fn(c); } catch (e) { /* silent */ } };
+
+  return {
+    click: () => play((c) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = "sine"; o.frequency.value = 600;
+      g.gain.setValueAtTime(0.08, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.06);
+      o.connect(g); g.connect(c.destination);
+      o.start(c.currentTime); o.stop(c.currentTime + 0.06);
+    }),
+    correct: () => play((c) => {
+      [523, 659, 784].forEach((freq, i) => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = "sine"; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.1, c.currentTime + i * 0.08);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.08 + 0.2);
+        o.connect(g); g.connect(c.destination);
+        o.start(c.currentTime + i * 0.08); o.stop(c.currentTime + i * 0.08 + 0.2);
+      });
+    }),
+    wrong: () => play((c) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = "square"; o.frequency.value = 200;
+      o.frequency.linearRampToValueAtTime(140, c.currentTime + 0.15);
+      g.gain.setValueAtTime(0.06, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
+      o.connect(g); g.connect(c.destination);
+      o.start(c.currentTime); o.stop(c.currentTime + 0.2);
+    }),
+    unlock: () => play((c) => {
+      [392, 494, 587, 784].forEach((freq, i) => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = "sine"; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.1, c.currentTime + i * 0.12);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.12 + 0.35);
+        o.connect(g); g.connect(c.destination);
+        o.start(c.currentTime + i * 0.12); o.stop(c.currentTime + i * 0.12 + 0.35);
+      });
+    }),
+    celebrate: () => play((c) => {
+      [523, 659, 784, 1047, 784, 1047].forEach((freq, i) => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = "sine"; o.frequency.value = freq;
+        const t = c.currentTime + i * 0.1;
+        g.gain.setValueAtTime(0.1, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        o.connect(g); g.connect(c.destination);
+        o.start(t); o.stop(t + 0.3);
+      });
+    }),
+    timerWarn: () => play((c) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = "sine"; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.04, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.05);
+      o.connect(g); g.connect(c.destination);
+      o.start(c.currentTime); o.stop(c.currentTime + 0.05);
+    }),
+  };
+})();
+
+// Level definitions
+const LEVELS = [
+  { num: 1, name: "Hormone Basics", desc: "PTH vs Calcitonin", icon: "🧪", color: "#818cf8", scenarioCount: 5 },
+  { num: 2, name: "Vitamin D Factor", desc: "Add Vit D intervention", icon: "☀️", color: "#f59e0b", scenarioCount: 5 },
+  { num: 3, name: "Loop Disruption", desc: "Find the broken link", icon: "🔗", color: "#f472b6", scenarioCount: 5 },
+];
+
+// ─── Flow Particles ──────────────────────────────────────────────────────────
+function Particles({ pathId, count, color, speed, size, shape }) {
+  const pts = useMemo(() => Array.from({ length: count }, (_, i) => ({ id: i, d: (i / count) * speed })), [count, speed]);
+  const s = size || 3;
+  const motion = (delay) => (
+    <animateMotion dur={`${speed}s`} repeatCount="indefinite" begin={`${delay}s`} keyPoints="0;1" keyTimes="0;1">
+      <mpath href={`#${pathId}`} />
+    </animateMotion>
+  );
+  if (shape === "star") {
+    const r = s * 2, ri = s * 0.7;
+    const p = Array.from({ length: 8 }, (_, i) => {
+      const a = (Math.PI / 4) * i - Math.PI / 2, rad = i % 2 === 0 ? r : ri;
+      return `${Math.cos(a) * rad},${Math.sin(a) * rad}`;
+    }).join(" ");
+    return <>{pts.map((pt) => <g key={pt.id} opacity={0.95}><polygon points={p} fill={color}><animate attributeName="opacity" values="1;0.5;1" dur="0.7s" repeatCount="indefinite" /></polygon>{motion(pt.d)}</g>)}</>;
+  }
+  if (shape === "diamond") {
+    const d = s * 1.5;
+    return <>{pts.map((pt) => <g key={pt.id} opacity={0.95}><rect x={-d} y={-d} width={d*2} height={d*2} rx={1} fill={color} transform="rotate(45)"><animate attributeName="opacity" values="0.95;0.55;0.95" dur="0.8s" repeatCount="indefinite" /></rect>{motion(pt.d)}</g>)}</>;
+  }
+  return <>{pts.map((pt) => <circle key={pt.id} r={s} fill={color} opacity={0.9}>{motion(pt.d)}</circle>)}</>;
+}
+
+// ─── Body Diagram ────────────────────────────────────────────────────────────
+function Diagram({ hormone, brokenOrgan }) {
+  const f = useMemo(() => {
+    if (!hormone) return { b2bl: 2, bl2b: 2, g2bl: 2, g2f: 2, k2u: 2, k2bl: 2, k2v: 1, v2g: 1 };
+    if (hormone === "pth") return { b2bl: 6, bl2b: 0, g2bl: 6, g2f: 1, k2u: 0, k2bl: 5, k2v: 5, v2g: 5 };
+    if (hormone === "calcitonin") return { b2bl: 0, bl2b: 6, g2bl: 1, g2f: 4, k2u: 5, k2bl: 0, k2v: 0, v2g: 0 };
+    if (hormone === "vitd") return { b2bl: 2, bl2b: 2, g2bl: 6, g2f: 1, k2u: 2, k2bl: 2, k2v: 5, v2g: 6 };
+    return { b2bl: 2, bl2b: 2, g2bl: 2, g2f: 2, k2u: 2, k2bl: 2, k2v: 1, v2g: 1 };
+  }, [hormone]);
+  const hc = hormone === "pth" ? "#818cf8" : hormone === "calcitonin" ? "#f472b6" : hormone === "vitd" ? "#f59e0b" : "#334155";
+  const vdActive = hormone === "pth" || hormone === "vitd";
+  const pulse = (color) => <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.5s" repeatCount="indefinite" />;
+  const isBroken = (key) => brokenOrgan === key;
+  const orgBox = (x, y, w, h, emoji, label, sub, orgKey) => (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx={10}
+        fill={isBroken(orgKey) ? "#450a0a" : "#1e293b"}
+        stroke={isBroken(orgKey) ? "#dc2626" : hormone ? hc : "#475569"}
+        strokeWidth={isBroken(orgKey) ? 3 : hormone ? 2 : 1.5} />
+      <text x={x + w / 2} y={y + 20} textAnchor="middle" fontSize="16">{emoji}</text>
+      <text x={x + w / 2} y={y + 34} textAnchor="middle" fill="#e2e8f0" fontSize="10" fontWeight="700">{label}</text>
+      {sub && <text x={x + w / 2} y={y + 46} textAnchor="middle" fill={isBroken(orgKey) ? "#fca5a5" : hormone ? hc : "#64748b"} fontSize="7.5" fontWeight={hormone || isBroken(orgKey) ? "600" : "400"}>{sub}</text>}
+      {isBroken(orgKey) && (
+        <>
+          <line x1={x+4} y1={y+4} x2={x+w-4} y2={y+h-4} stroke="#dc2626" strokeWidth="2" opacity="0.4" />
+          <line x1={x+w-4} y1={y+4} x2={x+4} y2={y+h-4} stroke="#dc2626" strokeWidth="2" opacity="0.4" />
+          <rect x={x+1} y={y+1} width={w-2} height={h-2} rx={9} fill="none" stroke="#dc2626" strokeWidth="2" opacity="0.6">
+            <animate attributeName="opacity" values="0.6;0.2;0.6" dur="1s" repeatCount="indefinite" />
+          </rect>
+        </>
+      )}
+      {hormone && !isBroken(orgKey) && <rect x={x + 1} y={y + 1} width={w - 2} height={h - 2} rx={9} fill="none" stroke={hc} strokeWidth="1.5" opacity="0.4">{pulse(hc)}</rect>}
+    </g>
+  );
+  const hormoneLabel = hormone === "pth" ? "PTH: raising blood Ca²⁺"
+    : hormone === "calcitonin" ? "Calcitonin: lowering blood Ca²⁺"
+    : hormone === "vitd" ? "Vitamin D: boosting intestinal absorption"
+    : null;
+  return (
+    <div style={{ background: "#0f172a", borderRadius: 14, padding: "8px 6px 4px", border: `2px solid ${isBroken(brokenOrgan) ? "#dc2626" : hc}`, transition: "border-color 0.4s" }}>
+      {hormoneLabel && <div style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: hc, textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>
+        {hormoneLabel}
+      </div>}
+      {brokenOrgan && !hormone && <div style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "#dc2626", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>
+        🔗 Broken: {brokenOrgan === "parathyroid" ? "Parathyroid Glands" : brokenOrgan.charAt(0).toUpperCase() + brokenOrgan.slice(1)}
+      </div>}
+      <svg viewBox="0 0 500 400" style={{ width: "100%", display: "block" }} role="img" aria-label="Body diagram showing calcium homeostasis organs: parathyroid glands, kidneys, intestines, and bones. Hormones and calcium flow are animated.">
+        <defs>
+          <filter id="gl"><feGaussianBlur stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+          <filter id="vg"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+          <path id="b2bl" d="M 120 82 C 120 125,190 148,240 168" fill="none" />
+          <path id="bl2b" d="M 240 168 C 190 148,120 125,120 82" fill="none" />
+          <path id="g2bl" d="M 375 100 C 340 128,295 150,252 168" fill="none" />
+          <path id="g2f" d="M 400 118 C 420 155,440 200,445 248" fill="none" />
+          <path id="k2u" d="M 145 290 C 135 318,120 340,105 362" fill="none" />
+          <path id="k2bl" d="M 175 258 C 195 232,220 205,242 182" fill="none" />
+          <path id="k2v" d="M 218 280 C 248 290,278 298,298 302" fill="none" />
+          <path id="v2g" d="M 350 290 C 368 260,378 215,382 125" fill="none" />
+        </defs>
+        {/* Blood vessel */}
+        <rect x="55" y="162" width="390" height="28" rx="14" fill="#450a0a" opacity="0.5" />
+        <rect x="58" y="165" width="384" height="22" rx="11" fill="#7f1d1d" opacity="0.4" />
+        <text x="250" y="180" textAnchor="middle" fill="#fca5a5" fontSize="10" fontWeight="700">BLOODSTREAM</text>
+        {/* Organs */}
+        {orgBox(60, 28, 120, 52, "🦴", "BONES", hormone === "pth" ? "releasing Ca²⁺" : hormone === "calcitonin" ? "storing Ca²⁺" : isBroken("bones") ? "⚠ MALFUNCTIONING" : null, "bones")}
+        {orgBox(320, 35, 130, 85, "🍽️", "INTESTINES", vdActive ? "★ Vit D boosting ★" : hormone === "calcitonin" ? "absorption ↓" : isBroken("gut") ? "⚠ MALFUNCTIONING" : null, "gut")}
+        {orgBox(88, 230, 130, 55, "🫘", "KIDNEYS", hormone === "pth" ? "saving Ca²⁺ + activating Vit D" : hormone === "calcitonin" ? "excreting Ca²⁺" : hormone === "vitd" ? "activating Vit D" : isBroken("kidneys") ? "⚠ MALFUNCTIONING" : null, "kidneys")}
+        {/* Parathyroid glands indicator (Level 3) */}
+        {brokenOrgan !== undefined && (
+          <g>
+            <rect x="192" y="135" width="16" height="16" rx="4"
+              fill={isBroken("parathyroid") ? "#450a0a" : "#1e293b"}
+              stroke={isBroken("parathyroid") ? "#dc2626" : "#475569"} strokeWidth={isBroken("parathyroid") ? 2 : 1} />
+            <text x="200" y="147" textAnchor="middle" fontSize="8" fill={isBroken("parathyroid") ? "#fca5a5" : "#94a3b8"}>PT</text>
+            {isBroken("parathyroid") && <rect x="192" y="135" width="16" height="16" rx="4" fill="none" stroke="#dc2626" strokeWidth="1.5" opacity="0.5">
+              <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1s" repeatCount="indefinite" />
+            </rect>}
+          </g>
+        )}
+        {/* Vitamin D — signal relay badge */}
+        <path d="M 218 280 C 248 290,278 298,332 302 C 358 300,375 260,382 125" fill="none" stroke={vdActive ? "#f59e0b" : "#475569"} strokeWidth={vdActive ? 1.5 : 1} strokeDasharray={vdActive ? "6,3" : "3,4"} opacity={vdActive ? 0.5 : 0.2} />
+        <rect x="290" y="286" width="84" height="36" rx="18" fill={vdActive ? "#422006" : "#0f172a"} stroke={vdActive ? "#f59e0b" : "#475569"} strokeWidth={vdActive ? 2 : 1} style={{ transition: "all 0.4s" }} />
+        {vdActive && <rect x="290" y="286" width="84" height="36" rx="18" fill="none" stroke="#fbbf24" strokeWidth="1.5" opacity="0.4" filter="url(#vg)">{pulse("#fbbf24")}</rect>}
+        <text x="332" y="300" textAnchor="middle" fill={vdActive ? "#fbbf24" : "#94a3b8"} fontSize="9" fontWeight="700">☀️ Vit D</text>
+        <text x="332" y="314" textAnchor="middle" fill={vdActive ? "#fcd34d" : "#64748b"} fontSize="7" fontStyle="italic">{vdActive ? "active → intestines" : "signal off"}</text>
+        {/* Urine */}
+        <rect x="48" y="348" width="78" height="36" rx="8" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+        <text x="87" y="364" textAnchor="middle" fill="#fbbf24" fontSize="9" fontWeight="600">💧 URINE</text>
+        <text x="87" y="376" textAnchor="middle" fill="#64748b" fontSize="7">{hormone === "pth" ? "less Ca²⁺" : hormone === "calcitonin" ? "more Ca²⁺" : ""}</text>
+        {/* Feces */}
+        <rect x="410" y="235" width="78" height="36" rx="8" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+        <text x="449" y="251" textAnchor="middle" fill="#a1887f" fontSize="9" fontWeight="600">💩 FECES</text>
+        <text x="449" y="263" textAnchor="middle" fill="#64748b" fontSize="7">{hormone === "pth" ? "less wasted" : hormone === "calcitonin" ? "more wasted" : ""}</text>
+        {/* Connectors */}
+        <line x1="190" y1="190" x2="170" y2="230" stroke="#7f1d1d" strokeWidth="1.5" opacity="0.3" strokeDasharray="3,2" />
+        {/* Particles */}
+        <g filter="url(#gl)">
+          {f.b2bl > 0 && <Particles pathId="b2bl" count={f.b2bl} color="#fbbf24" speed={f.b2bl > 3 ? 1.4 : 2.5} size={f.b2bl > 3 ? 4 : 3} />}
+          {f.bl2b > 0 && <Particles pathId="bl2b" count={f.bl2b} color="#38bdf8" speed={f.bl2b > 3 ? 1.4 : 2.5} size={f.bl2b > 3 ? 4 : 3} />}
+          {f.g2bl > 0 && <Particles pathId="g2bl" count={f.g2bl} color="#4ade80" speed={f.g2bl > 3 ? 1.3 : 2.5} size={f.g2bl > 3 ? 4.5 : 3} />}
+          {f.g2f > 0 && <Particles pathId="g2f" count={f.g2f} color="#a1887f" speed={f.g2f > 3 ? 1.8 : 2.8} size={3} />}
+          {f.k2u > 0 && <Particles pathId="k2u" count={f.k2u} color="#fbbf24" speed={f.k2u > 3 ? 1.5 : 2.8} size={f.k2u > 3 ? 4 : 3} />}
+          {f.k2bl > 0 && <Particles pathId="k2bl" count={f.k2bl} color="#38bdf8" speed={f.k2bl > 3 ? 1.4 : 2.5} size={f.k2bl > 3 ? 4 : 3} />}
+          {f.k2v > 0 && <Particles pathId="k2v" count={f.k2v} color="#f59e0b" speed={f.k2v > 3 ? 1.2 : 2.5} size={f.k2v > 3 ? 5 : 3} shape="star" />}
+          {f.v2g > 0 && <Particles pathId="v2g" count={f.v2g} color="#f59e0b" speed={f.v2g > 3 ? 1.6 : 2.8} size={f.v2g > 3 ? 4.5 : 3} shape="star" />}
+        </g>
+        {/* Legend */}
+        <g transform="translate(255,350)">
+          <circle cx="4" cy="6" r="2" fill="#fbbf24" /><text x="10" y="9" fill="#64748b" fontSize="7">Ca²⁺ out</text>
+          <circle cx="4" cy="18" r="2" fill="#38bdf8" /><text x="10" y="21" fill="#64748b" fontSize="7">Ca²⁺ in</text>
+          <circle cx="70" cy="6" r="2" fill="#4ade80" /><text x="76" y="9" fill="#64748b" fontSize="7">absorbed</text>
+          <polygon points="70,15 71.5,17.5 74,18 71.5,19.5 72,22 70,20.5 68,22 68.5,19.5 66,18 68.5,17.5" fill="#f59e0b" />
+          <text x="76" y="21" fill="#f59e0b" fontSize="7" fontWeight="600">★ Vit D signal</text>
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+// ─── Organ Effect Pills ─────────────────────────────────────────────────────
+function OrganPills({ organs }) {
+  const items = [
+    { key: "kidneys", icon: "🫘", label: "Kidneys" },
+    { key: "gut", icon: "🍽️", label: "Intestines" },
+    { key: "bones", icon: "🦴", label: "Bones" },
+    { key: "vitD", icon: "☀️", label: "Vit D" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+      {items.map(({ key, icon, label }) => {
+        const val = organs[key];
+        if (!val) return null;
+        const isVitD = key === "vitD";
+        const isActive = isVitD && val.includes("ACTIVE");
+        const isBroken = val.includes("BROKEN") || val.includes("FAILED");
+        return (
+          <div key={key} style={{
+            background: isBroken ? "rgba(220,38,38,0.12)" : isActive ? "rgba(245,158,11,0.15)" : "#0f172a",
+            border: `1px solid ${isBroken ? "#dc2626" : isActive ? "#f59e0b" : "#334155"}`,
+            borderRadius: 8, padding: "6px 10px", flex: "1 1 auto", minWidth: 90, textAlign: "center",
+          }}>
+            <div style={{ fontSize: 24 }}>{icon}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: isBroken ? "#fca5a5" : isActive ? "#fbbf24" : "#e2e8f0", marginTop: 2 }}>{label}</div>
+            <div style={{ fontSize: 9, color: isBroken ? "#fca5a5" : isActive ? "#fcd34d" : "#94a3b8", lineHeight: 1.4, marginTop: 2 }}>{val}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main Game ───────────────────────────────────────────────────────────────
+function CalciumCrisis() {
+  const [phase, setPhase] = useState("intro"); // intro | levelSelect | howItWorks | vitDIntro | loopIntro | playing | feedback | results | unlock
+  const [learningMode, setLearningMode] = useState(false); // no timer when true
+  const [level, setLevel] = useState(1);
+  const [unlocked, setUnlocked] = useState([1]); // which levels are unlocked
+  const [levelScores, setLevelScores] = useState({}); // { 1: { ok, total, pct }, 2: {...} }
+  const [ca, setCa] = useState(10.0);
+  const [targetCa, setTargetCa] = useState(10.0);
+  const [anim, setAnim] = useState(false);
+  const [scenarios, setScenarios] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [score, setScore] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [best, setBest] = useState(0);
+  const [fb, setFb] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [hormone, setHormone] = useState(null);
+  const [brokenHighlight, setBrokenHighlight] = useState(null); // for L3 diagram
+  const [timer, setTimer] = useState(null);
+  const [ticking, setTicking] = useState(false);
+  const [reflectPick, setReflectPick] = useState(null);
+  const [unlockLevel, setUnlockLevel] = useState(null); // which level was just unlocked
+  const tRef = useRef(null);
+
+  useEffect(() => {
+    if (!anim) return;
+    const step = targetCa > ca ? 0.05 : -0.05;
+    if (Math.abs(ca - targetCa) < 0.06) { setCa(Math.round(targetCa * 10) / 10); setAnim(false); return; }
+    const id = setTimeout(() => setCa(c => Math.round((c + step) * 100) / 100), 30);
+    return () => clearTimeout(id);
+  }, [ca, targetCa, anim]);
+
+  useEffect(() => {
+    if (!ticking || !timer || timer <= 0) return;
+    if (timer <= 5) SFX.timerWarn();
+    tRef.current = setTimeout(() => setTimer(t => t - 1), 1000);
+    return () => clearTimeout(tRef.current);
+  }, [timer, ticking]);
+
+  useEffect(() => { if (ticking && timer === 0 && !learningMode) pick("none"); }, [timer, ticking, learningMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When a new (non-baseline) scenario appears, shift Ca²⁺ to show the disruption
+  useEffect(() => {
+    if (phase !== "playing" || !scenarios[idx] || scenarios[idx].baseline || scenarios[idx].effect === 0) return;
+    const sc = scenarios[idx];
+    const disrupted = Math.round(Math.min(Math.max(ca + sc.effect, 6), 14) * 10) / 10;
+    const id = setTimeout(() => { setTargetCa(disrupted); setAnim(true); }, 400);
+    return () => clearTimeout(id);
+  }, [idx, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const buildScenarios = useCallback((lvl) => {
+    if (lvl === 1) {
+      const eq = [5, 9, 10];
+      const eqPick = shuffle(SCENARIOS_L1.filter(s => eq.includes(s.id))).slice(0, 1);
+      const rest = shuffle(SCENARIOS_L1.filter(s => !eq.includes(s.id))).slice(0, 4);
+      const ordered = [...rest];
+      const eqPos = 1 + Math.floor(Math.random() * 2);
+      ordered.splice(eqPos, 0, eqPick[0]);
+      return [BASELINE, ...ordered];
+    }
+    if (lvl === 2) {
+      // Guarantee at least 2 vitd-correct and 2 non-vitd scenarios
+      const vitdScenarios = shuffle(SCENARIOS_L2.filter(s => s.correct === "vitd")).slice(0, 3);
+      const otherScenarios = shuffle(SCENARIOS_L2.filter(s => s.correct !== "vitd")).slice(0, 2);
+      return [BASELINE_L2, ...shuffle([...vitdScenarios, ...otherScenarios])];
+    }
+    // Level 3
+    const organs = ["parathyroid", "kidneys", "gut", "bones"];
+    const picks = [];
+    // One from each organ type to ensure variety
+    for (const org of organs) {
+      const pool = SCENARIOS_L3.filter(s => s.broken === org);
+      if (pool.length) picks.push(shuffle(pool)[0]);
+    }
+    // Fill to 5 with random remaining
+    const remaining = shuffle(SCENARIOS_L3.filter(s => !picks.find(p => p.id === s.id)));
+    while (picks.length < 5 && remaining.length) picks.push(remaining.shift());
+    return [BASELINE_L3, ...shuffle(picks)];
+  }, []);
+
+  const [hasSeenHowItWorks, setHasSeenHowItWorks] = useState(false);
+  const [hasSeenVitDIntro, setHasSeenVitDIntro] = useState(false);
+  const [hasSeenL3Intro, setHasSeenL3Intro] = useState(false);
+  const [showFullWhy, setShowFullWhy] = useState(false); // hint system: false = show hint only
+  const [showCounsel, setShowCounsel] = useState(false); // counseling step toggle
+  const [showGlossary, setShowGlossary] = useState(false); // glossary overlay toggle
+  const [glossarySearch, setGlossarySearch] = useState(""); // glossary search filter
+
+  const startLevel = useCallback((lvl, skipIntro) => {
+    const built = buildScenarios(lvl);
+    setLevel(lvl);
+    setScenarios(built);
+    setIdx(0); setCa(10); setTargetCa(10); setScore(0); setStreak(0); setBest(0);
+    setHistory([]); setFb(null); setHormone(null); setBrokenHighlight(null);
+    setTimer(null); setTicking(false); setReflectPick(null);
+    if (lvl === 1 && !hasSeenHowItWorks && !skipIntro) {
+      setPhase("howItWorks");
+    } else if (lvl === 2 && !hasSeenVitDIntro && !skipIntro) {
+      setPhase("vitDIntro");
+    } else if (lvl === 3 && !hasSeenL3Intro && !skipIntro) {
+      setPhase("loopIntro");
+    } else {
+      setPhase("playing");
+    }
+  }, [buildScenarios, hasSeenHowItWorks, hasSeenVitDIntro, hasSeenL3Intro]);
+
+  const pick = useCallback((choice) => {
+    setTicking(false); clearTimeout(tRef.current);
+    const sc = scenarios[idx];
+    const ok = choice === sc.correct;
+    const out = choice === "none";
+    if (!out) {
+      if (level <= 2) setHormone(choice);
+      else setBrokenHighlight(choice); // L3: highlight chosen organ
+    }
+    const corrected = Math.round(Math.min(Math.max(ca - sc.effect * 0.7, 7.5), 12) * 10) / 10;
+    const ns = ok ? streak + 1 : 0;
+    const pts = ok ? 100 + (ns > 1 ? (ns - 1) * 25 : 0) : 0;
+    setScore(s => s + pts); setStreak(ns); if (ns > best) setBest(ns);
+    setFb({ ok, out, sc, choice, pts, ns, fixed: corrected });
+    setHistory(h => [...h, { title: sc.title, ok, out, choice, ans: sc.correct }]);
+    if (ok) SFX.correct(); else if (!out) SFX.wrong();
+    setPhase("feedback");
+    setTimeout(() => {
+      if (level <= 2) {
+        if (!ok && !out) setHormone(sc.correct);
+        if (ok) { setTargetCa(corrected); setAnim(true); }
+        if (!ok) { setTimeout(() => { setTargetCa(corrected); setAnim(true); }, 800); }
+      } else {
+        // L3: show the correct broken organ
+        setBrokenHighlight(sc.correct);
+        if (ok) { setTargetCa(corrected); setAnim(true); }
+        if (!ok) { setTimeout(() => { setTargetCa(corrected); setAnim(true); }, 800); }
+      }
+    }, 1200);
+  }, [scenarios, idx, ca, streak, best, level]);
+
+  const next = useCallback(() => {
+    setHormone(null);
+    setBrokenHighlight(null);
+    setShowFullWhy(false);
+    setShowCounsel(false);
+    setShowGlossary(false);
+    if (idx + 1 >= scenarios.length) { setPhase("results"); setTicking(false); }
+    else { setIdx(i => i + 1); setFb(null); setPhase("playing"); if (!learningMode) { setTimer(level === 3 ? 40 : 35); setTicking(true); } else { setTimer(null); setTicking(false); } }
+  }, [idx, scenarios.length, learningMode, level]);
+
+  const sc = scenarios[idx];
+
+  // ─── Styles ────────────────────────────────────────────────────────────
+  const P = {
+    page: { fontFamily: "'Segoe UI',system-ui,sans-serif", maxWidth: 900, margin: "0 auto", padding: "12px 16px", background: "linear-gradient(135deg,#0f172a,#1e293b)", minHeight: "100vh", color: "#e2e8f0" },
+    title: { fontSize: 24, fontWeight: 800, background: "linear-gradient(90deg,#f472b6,#818cf8,#38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0, textAlign: "center", letterSpacing: -0.5 },
+    card: { background: "#1e293b", borderRadius: 14, padding: "14px 16px", marginBottom: 12, border: "1px solid #334155" },
+    btn: c => ({ flex: 1, padding: "14px 10px", borderRadius: 12, border: `2px solid ${c}`, background: `${c}30`, color: "#f1f5f9", fontSize: 18, fontWeight: 800, cursor: "pointer", transition: "all 0.15s", textAlign: "center" }),
+    go: { display: "block", width: "100%", padding: "12px", borderRadius: 10, border: "none", background: "linear-gradient(90deg,#818cf8,#38bdf8)", color: "#0f172a", fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 10 },
+  };
+
+  // ─── Hint generator (1-line nudge for wrong answers) ───────────────────
+  const getHint = (sc, choice) => {
+    if (level === 1) {
+      if (sc.effect < 0 && choice === "calcitonin") return "Ca²⁺ is low. Calcitonin lowers it further. Which hormone raises Ca²⁺?";
+      if (sc.effect > 0 && choice === "pth") return "Ca²⁺ is already high. PTH raises it more. Which hormone brings it down?";
+      return sc.effect < 0 ? "Ca²⁺ is dropping. The body needs to raise it." : "Ca²⁺ is spiking. The body needs to lower it.";
+    }
+    if (level === 2) {
+      if (sc.correct === "vitd" && choice !== "vitd") return "The problem is not hormone signaling. The body is missing a nutrient it needs to absorb calcium.";
+      if (sc.correct !== "vitd" && choice === "vitd") return "Vitamin D levels are fine here. This is a hormone regulation problem.";
+      return sc.effect < 0 ? "Ca²⁺ is low. Is the issue hormones, or is a nutrient missing?" : "Ca²⁺ is high. Which response brings it down?";
+    }
+    // Level 3
+    return "Follow the signal path: sensor (parathyroids) → signal (PTH) → effectors (kidneys, intestines, bones). Where does the chain break?";
+  };
+
+  // ─── Gauge ─────────────────────────────────────────────────────────────
+  const Gauge = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#1e293b", borderRadius: 12, marginBottom: 10, border: "1px solid #334155" }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, width: 50 }}>Ca²⁺</div>
+      <div style={{ flex: 1, position: "relative", height: 20, borderRadius: 10, background: "#0f172a", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, display: "flex" }}>
+          <div style={{ flex: 1.5, background: "rgba(220,38,38,0.25)" }} />
+          <div style={{ flex: 1, background: "rgba(245,158,11,0.2)" }} />
+          <div style={{ flex: 2, background: "rgba(34,197,94,0.2)" }} />
+          <div style={{ flex: 1, background: "rgba(245,158,11,0.2)" }} />
+          <div style={{ flex: 1.5, background: "rgba(220,38,38,0.25)" }} />
+        </div>
+        <div style={{ position: "absolute", top: -2, bottom: -2, width: 4, background: "#fff", borderRadius: 2, left: `${Math.min(Math.max(((ca - 6) / 8) * 100, 1), 99)}%`, transition: "left 0.3s", boxShadow: "0 0 8px rgba(255,255,255,0.6)" }} />
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: barColor(ca), fontVariantNumeric: "tabular-nums", minWidth: 80, textAlign: "right" }}>
+        {ca.toFixed(1)}<span style={{ fontSize: 10, color: "#64748b" }}> mg/dL</span>
+      </div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: barColor(ca), width: 90, textAlign: "center" }}>{zoneLabel(ca)}</div>
+    </div>
+  );
+
+  // ─── Stats bar ─────────────────────────────────────────────────────────
+  const Stats = () => (
+    <div style={{ display: "flex", justifyContent: "center", gap: 24, marginBottom: 10 }}>
+      {[{ n: score, l: "PTS" }, { n: streak > 0 ? `${streak}🔥` : "0", l: "STREAK" }, ...(learningMode ? [{ n: "📖", l: "LEARN" }] : [{ n: `${timer}s`, l: "TIME", c: timer <= 5 ? "#dc2626" : "#f1f5f9" }])].map((s, i) => (
+        <div key={i} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: s.c || "#f1f5f9" }}>{s.n}</div>
+          <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8 }}>{s.l}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // ─── Level badge ───────────────────────────────────────────────────────
+  const LevelBadge = () => {
+    const l = LEVELS[level - 1];
+    return (
+      <div style={{ textAlign: "center", marginBottom: 6 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: l.color, background: `${l.color}18`, padding: "3px 12px", borderRadius: 12, border: `1px solid ${l.color}40`, letterSpacing: 0.5 }}>
+          {l.icon} LEVEL {l.num}: {l.name.toUpperCase()}
+        </span>
+      </div>
+    );
+  };
+
+  // ─── Answer label helper ───────────────────────────────────────────────
+  const answerLabel = (correct) => {
+    if (level <= 2) {
+      if (correct === "pth") return { text: "PTH ↑ Ca²⁺", color: "#818cf8" };
+      if (correct === "calcitonin") return { text: "Calcitonin ↓ Ca²⁺", color: "#f472b6" };
+      if (correct === "vitd") return { text: "☀️ Vitamin D supplement", color: "#f59e0b" };
+    }
+    // Level 3
+    const labels = { parathyroid: "Parathyroid Glands", kidneys: "Kidneys", gut: "Intestines", bones: "Bones" };
+    return { text: `🔗 ${labels[correct] || correct}`, color: "#dc2626" };
+  };
+
+  // ─── INTRO ─────────────────────────────────────────────────────────────
+  if (phase === "intro") return (
+    <div style={P.page}>
+      <h1 style={{ ...P.title, fontSize: 32, marginTop: 16 }}>CALCIUM CRISIS</h1>
+      <p style={{ textAlign: "center", fontSize: 12, color: "#64748b", marginTop: 2, marginBottom: 16 }}>Homeostasis Review Game</p>
+      <div style={{ maxWidth: 460, margin: "0 auto 16px" }}>
+        <Diagram hormone={null} />
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <p style={{ fontSize: 14, color: "#94a3b8", maxWidth: 480, margin: "0 auto 16px", lineHeight: 1.6 }}>
+          Life events shift blood calcium. Pick the right response. Watch the body react. Three levels of increasing complexity.
+        </p>
+        <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+          {LEVELS.map(l => (
+            <div key={l.num} style={{
+              fontSize: 11, color: l.color, background: `${l.color}10`, padding: "6px 14px", borderRadius: 10,
+              border: `1px solid ${l.color}30`, textAlign: "center", minWidth: 110,
+            }}>
+              <div style={{ fontWeight: 800 }}>{l.icon} Level {l.num}</div>
+              <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 2 }}>{l.desc}</div>
+            </div>
+          ))}
+        </div>
+        <button style={{ ...P.go, display: "inline-block", width: "auto", padding: "14px 48px", fontSize: 16 }}
+          onClick={() => { SFX.click(); setPhase("levelSelect"); }} onMouseOver={e => e.target.style.transform = "scale(1.03)"} onMouseOut={e => e.target.style.transform = "scale(1)"}>
+          Choose Level →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─── LEVEL SELECT ──────────────────────────────────────────────────────
+  if (phase === "levelSelect") return (
+    <div style={P.page}>
+      <h1 style={{ ...P.title, fontSize: 28, marginTop: 12 }}>CALCIUM CRISIS</h1>
+      <p style={{ textAlign: "center", fontSize: 13, color: "#94a3b8", marginBottom: 20 }}>Choose your challenge</p>
+      <div style={{ maxWidth: 500, margin: "0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
+        {LEVELS.map(l => {
+          const isUnlocked = unlocked.includes(l.num);
+          const completed = levelScores[l.num];
+          return (
+            <button key={l.num} disabled={!isUnlocked}
+              onClick={() => { if (isUnlocked) { SFX.click(); startLevel(l.num); } }}
+              onMouseOver={e => { if (isUnlocked) e.currentTarget.style.transform = "translateY(-2px)"; }}
+              onMouseOut={e => { if (isUnlocked) e.currentTarget.style.transform = "translateY(0)"; }}
+              style={{
+                background: isUnlocked ? "#1e293b" : "#0f172a",
+                border: `2px solid ${isUnlocked ? l.color : "#334155"}`,
+                borderRadius: 14, padding: "16px 20px", cursor: isUnlocked ? "pointer" : "not-allowed",
+                opacity: isUnlocked ? 1 : 0.5, transition: "all 0.2s", textAlign: "left",
+                display: "flex", alignItems: "center", gap: 16,
+              }}>
+              <div style={{ fontSize: 36 }}>{isUnlocked ? l.icon : "🔒"}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: isUnlocked ? l.color : "#475569" }}>
+                  Level {l.num}: {l.name}
+                </div>
+                <div style={{ fontSize: 12, color: isUnlocked ? "#94a3b8" : "#475569", marginTop: 2 }}>{l.desc}</div>
+                <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>
+                  {l.scenarioCount} scenarios · {l.num === 3 ? "40 sec each" : "35 sec each"}
+                </div>
+              </div>
+              {completed && (
+                <div style={{ textAlign: "center", padding: "6px 12px", background: `${l.color}15`, borderRadius: 8 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: l.color }}>{completed.pct}%</div>
+                  <div style={{ fontSize: 8, color: "#64748b", textTransform: "uppercase" }}>Best</div>
+                </div>
+              )}
+              {!isUnlocked && (
+                <div style={{ fontSize: 10, color: "#475569", fontStyle: "italic" }}>Complete Level {l.num - 1} to unlock</div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {/* Learning Mode toggle */}
+      <div style={{ maxWidth: 500, margin: "16px auto 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <button onClick={() => setLearningMode(m => !m)}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderRadius: 10,
+            border: `1.5px solid ${learningMode ? "#22c55e" : "#334155"}`,
+            background: learningMode ? "rgba(34,197,94,0.1)" : "transparent",
+            color: learningMode ? "#22c55e" : "#94a3b8", fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+          }}>
+          <span style={{ width: 14, height: 14, borderRadius: 4, display: "inline-flex", alignItems: "center", justifyContent: "center",
+            background: learningMode ? "#22c55e" : "transparent", border: `1.5px solid ${learningMode ? "#22c55e" : "#64748b"}`,
+            color: "#0f172a", fontSize: 10, fontWeight: 800 }}>{learningMode ? "✓" : ""}</span>
+          📖 Learning Mode (no timer)
+        </button>
+      </div>
+      <div style={{ textAlign: "center", marginTop: 10 }}>
+        <button onClick={() => setPhase("intro")} style={{ background: "none", border: "1px solid #334155", borderRadius: 8, padding: "8px 20px", color: "#94a3b8", fontSize: 12, cursor: "pointer" }}>
+          ← Back
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─── UNLOCK TRANSITION ─────────────────────────────────────────────────
+  if (phase === "unlock" && unlockLevel) {
+    const ul = LEVELS[unlockLevel - 1];
+    return (
+      <div style={P.page}>
+        <div style={{ maxWidth: 460, margin: "60px auto", textAlign: "center" }}>
+          <div style={{ fontSize: 72, marginBottom: 16, animation: "none" }}>🔓</div>
+          <h2 style={{ fontSize: 28, fontWeight: 800, color: ul.color, marginBottom: 8 }}>
+            Level {ul.num} Unlocked!
+          </h2>
+          <div style={{ fontSize: 16, color: "#94a3b8", marginBottom: 4 }}>{ul.icon} {ul.name}</div>
+          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24 }}>{ul.desc}</div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <button onClick={() => { SFX.click(); startLevel(unlockLevel); }}
+              style={{ ...P.go, display: "inline-block", width: "auto", padding: "14px 36px" }}>
+              Play Level {ul.num} →
+            </button>
+            <button onClick={() => { SFX.click(); setUnlockLevel(null); setPhase("levelSelect"); }}
+              style={{ background: "none", border: "1px solid #334155", borderRadius: 10, padding: "14px 24px", color: "#94a3b8", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+              Level Select
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── HOW IT WORKS ──────────────────────────────────────────────────────
+  if (phase === "howItWorks") return (
+    <div style={P.page}>
+      <h1 style={{ ...P.title, fontSize: 28, marginTop: 12 }}>HOW IT WORKS</h1>
+      <p style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>Two hormones keep blood calcium in the safe zone. PTH does most of the heavy lifting; calcitonin plays a smaller, fine-tuning role.</p>
+      <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 220px", background: "#1e293b", borderRadius: 14, padding: "16px 18px", border: "2px solid #818cf8" }}>
+          <div style={{ fontSize: 28, textAlign: "center" }}>⬆️</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#818cf8", textAlign: "center", marginBottom: 6 }}>PTH (Parathyroid Hormone)</div>
+          <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.6 }}>
+            Released when blood Ca²⁺ is <strong style={{ color: "#f87171" }}>too low</strong>.
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginTop: 6 }}>
+            🦴 Pulls Ca²⁺ from bones<br/>
+            🫘 Tells kidneys to save Ca²⁺<br/>
+            ☀️ Activates Vitamin D → intestines absorb more
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#818cf8", textAlign: "center", marginTop: 8 }}>Net effect: Ca²⁺ goes UP ↑</div>
+        </div>
+        <div style={{ flex: "1 1 220px", background: "#1e293b", borderRadius: 14, padding: "16px 18px", border: "2px solid #f472b6" }}>
+          <div style={{ fontSize: 28, textAlign: "center" }}>⬇️</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#f472b6", textAlign: "center", marginBottom: 6 }}>Calcitonin</div>
+          <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.6 }}>
+            Released when blood Ca²⁺ is <strong style={{ color: "#fbbf24" }}>too high</strong>.
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginTop: 6 }}>
+            🦴 Deposits Ca²⁺ into bones<br/>
+            🫘 Tells kidneys to excrete Ca²⁺<br/>
+            ☀️ Vitamin D stays off
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#f472b6", textAlign: "center", marginTop: 8 }}>Net effect: Ca²⁺ goes DOWN ↓</div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 520, margin: "12px auto 0", background: "#0f172a", borderRadius: 10, padding: "10px 14px", border: "1px solid #334155", textAlign: "center" }}>
+        <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
+          Your job: read each scenario, decide if blood Ca²⁺ is rising or falling, then pick the hormone the body would release to fix it.
+        </div>
+      </div>
+      <div style={{ textAlign: "center", marginTop: 16 }}>
+        <button style={{ ...P.go, display: "inline-block", width: "auto", padding: "14px 48px", fontSize: 16 }}
+          onClick={() => { SFX.click(); setHasSeenHowItWorks(true); setPhase("playing"); }}
+          onMouseOver={e => e.target.style.transform = "scale(1.03)"} onMouseOut={e => e.target.style.transform = "scale(1)"}>
+          Got it, time to play! →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─── VITAMIN D INTRO (Level 2 teaching moment) ─────────────────────────
+  if (phase === "vitDIntro") return (
+    <div style={P.page}>
+      <h1 style={{ ...P.title, fontSize: 28, marginTop: 12 }}>LEVEL 2: NEW TOOL UNLOCKED</h1>
+      <p style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>Vitamin D is now available as a treatment option</p>
+      <div style={{ maxWidth: 520, margin: "0 auto" }}>
+        {/* What's new box */}
+        <div style={{ background: "#1e293b", borderRadius: 14, padding: "16px 18px", border: "2px solid #f59e0b", marginBottom: 14 }}>
+          <div style={{ fontSize: 28, textAlign: "center" }}>☀️</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#f59e0b", textAlign: "center", marginBottom: 8 }}>What changed?</div>
+          <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.7 }}>
+            In Level 1, you only had <strong style={{ color: "#818cf8" }}>PTH</strong> and <strong style={{ color: "#f472b6" }}>Calcitonin</strong>.
+            Now you also have <strong style={{ color: "#f59e0b" }}>Vitamin D supplementation</strong> as a third option.
+            Some scenarios will need Vitamin D instead of a hormone.
+          </div>
+        </div>
+        {/* Vitamin D synthesis pathway */}
+        <div style={{ background: "#1e293b", borderRadius: 14, padding: "16px 18px", border: "2px solid #f59e0b", marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#f59e0b", textAlign: "center", marginBottom: 10 }}>How is Vitamin D made?</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
+            {[
+              { icon: "☀️", label: "UVB sunlight", sub: "hits skin" },
+              { icon: "→", label: "" },
+              { icon: "🧬", label: "Skin", sub: "makes Vit D₃" },
+              { icon: "→", label: "" },
+              { icon: "🫘", label: "Liver", sub: "converts to storage form" },
+              { icon: "→", label: "" },
+              { icon: "🫘", label: "Kidneys", sub: "activate to usable form" },
+            ].map((step, i) => (
+              step.icon === "→" ? (
+                <span key={i} style={{ fontSize: 18, color: "#f59e0b", fontWeight: 700 }}>→</span>
+              ) : (
+                <div key={i} style={{ textAlign: "center", minWidth: 70, padding: "4px 6px", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
+                  <div style={{ fontSize: 18 }}>{step.icon}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#f1f5f9" }}>{step.label}</div>
+                  <div style={{ fontSize: 9, color: "#94a3b8" }}>{step.sub}</div>
+                </div>
+              )
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, textAlign: "center" }}>
+            Only the <strong style={{ color: "#f59e0b" }}>active form</strong> of Vitamin D works. It tells the intestines to absorb calcium.
+            If any step in this chain is broken (no sunlight, liver disease, kidney failure), the body cannot make enough active Vitamin D.
+          </div>
+        </div>
+        {/* Why it matters */}
+        <div style={{ background: "#0f172a", borderRadius: 10, padding: "10px 14px", border: "1px solid #334155", textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
+            <strong style={{ color: "#cbd5e1" }}>When to pick Vitamin D:</strong> if the scenario describes a patient whose problem is
+            <em> not enough calcium absorption</em> due to low Vitamin D (limited sun, dark skin + northern latitude, kidney disease, malabsorption),
+            supplementation is the right answer, not PTH or calcitonin.
+          </div>
+        </div>
+      </div>
+      <div style={{ textAlign: "center", marginTop: 16 }}>
+        <button style={{ ...P.go, display: "inline-block", width: "auto", padding: "14px 48px", fontSize: 16 }}
+          onClick={() => { SFX.click(); setHasSeenVitDIntro(true); setPhase("playing"); }}
+          onMouseOver={e => e.target.style.transform = "scale(1.03)"} onMouseOut={e => e.target.style.transform = "scale(1)"}>
+          Got it, time to play Level 2! →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─── LOOP INTRO (Level 3 teaching moment) ──────────────────────────────
+  if (phase === "loopIntro") return (
+    <div style={P.page}>
+      <h1 style={{ ...P.title, fontSize: 28, marginTop: 12 }}>LEVEL 3: THE FULL FEEDBACK LOOP</h1>
+      <p style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>Something in the loop is broken. Your job: find it.</p>
+      <div style={{ maxWidth: 540, margin: "0 auto" }}>
+        {/* The complete loop diagram */}
+        <div style={{ background: "#1e293b", borderRadius: 14, padding: "18px", border: "2px solid #f472b6", marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#f472b6", textAlign: "center", marginBottom: 12 }}>The Calcium Homeostasis Loop</div>
+          {/* Loop visualization */}
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            {/* Sensor */}
+            <div style={{ background: "#0f172a", borderRadius: 10, padding: "8px 16px", border: "1.5px solid #a78bfa", textAlign: "center", width: "80%" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#a78bfa" }}>🔔 SENSOR: Parathyroid Glands</div>
+              <div style={{ fontSize: 10, color: "#94a3b8" }}>Detect blood Ca²⁺ levels. If low → release PTH. If high → stop PTH.</div>
+            </div>
+            <div style={{ fontSize: 16, color: "#64748b" }}>↓ PTH signal</div>
+            {/* Effectors row */}
+            <div style={{ display: "flex", gap: 8, width: "100%", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 140px", background: "#0f172a", borderRadius: 10, padding: "8px 10px", border: "1.5px solid #38bdf8", textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#38bdf8" }}>🫘 KIDNEYS</div>
+                <div style={{ fontSize: 9, color: "#94a3b8", lineHeight: 1.5 }}>Save Ca²⁺ from urine. Activate Vitamin D (convert its storage form into the active form the body can use).</div>
+              </div>
+              <div style={{ flex: "1 1 140px", background: "#0f172a", borderRadius: 10, padding: "8px 10px", border: "1.5px solid #4ade80", textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#4ade80" }}>🍽️ INTESTINES</div>
+                <div style={{ fontSize: 9, color: "#94a3b8", lineHeight: 1.5 }}>Absorb Ca²⁺ from food. Requires active Vitamin D to work. No Vit D = no absorption.</div>
+              </div>
+              <div style={{ flex: "1 1 140px", background: "#0f172a", borderRadius: 10, padding: "8px 10px", border: "1.5px solid #f87171", textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#f87171" }}>🦴 BONES</div>
+                <div style={{ fontSize: 9, color: "#94a3b8", lineHeight: 1.5 }}>Ca²⁺ reservoir. PTH triggers bone-breakdown cells to release Ca²⁺. Calcitonin deposits it back.</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 16, color: "#64748b" }}>↓ Ca²⁺ changes</div>
+            {/* Signal relay */}
+            <div style={{ background: "#0f172a", borderRadius: 10, padding: "8px 16px", border: "1.5px solid #f59e0b", textAlign: "center", width: "80%" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#f59e0b" }}>☀️ VITAMIN D (Signal Relay)</div>
+              <div style={{ fontSize: 10, color: "#94a3b8" }}>Activated by kidneys (on PTH command). Tells intestines to absorb Ca²⁺. Without it, the loop stalls.</div>
+            </div>
+            <div style={{ fontSize: 16, color: "#64748b" }}>↓ blood Ca²⁺ returns to normal</div>
+            <div style={{ background: "#0f172a", borderRadius: 10, padding: "6px 16px", border: "1.5px solid #a78bfa", textAlign: "center", width: "60%" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#a78bfa" }}>🔔 Parathyroids sense the change → loop repeats</div>
+            </div>
+          </div>
+        </div>
+
+        {/* What's different in Level 3 */}
+        <div style={{ background: "#1e293b", borderRadius: 14, padding: "16px 18px", border: "2px solid #f472b6", marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#f472b6", textAlign: "center", marginBottom: 8 }}>What is different in Level 3?</div>
+          <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.7 }}>
+            In Levels 1 and 2, you chose the correct <em>response</em> (which hormone or supplement).
+            In Level 3, the response is already happening but <strong style={{ color: "#f472b6" }}>something in the loop is broken</strong>.
+            You will read a clinical case and identify <strong style={{ color: "#f1f5f9" }}>which component has failed</strong>:
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, justifyContent: "center" }}>
+            {[
+              { label: "Parathyroid Glands", icon: "🔔", color: "#a78bfa", hint: "sensor stuck or missing" },
+              { label: "Kidneys", icon: "🫘", color: "#38bdf8", hint: "cannot activate Vit D or save Ca²⁺" },
+              { label: "Intestines", icon: "🍽️", color: "#4ade80", hint: "cannot absorb Ca²⁺" },
+              { label: "Bones", icon: "🦴", color: "#f87171", hint: "releasing or hoarding Ca²⁺ abnormally" },
+            ].map(o => (
+              <div key={o.label} style={{ background: "#0f172a", borderRadius: 8, padding: "6px 10px", border: `1px solid ${o.color}40`, textAlign: "center", minWidth: 100, flex: "1 1 100px" }}>
+                <div style={{ fontSize: 16 }}>{o.icon}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: o.color }}>{o.label}</div>
+                <div style={{ fontSize: 9, color: "#64748b", fontStyle: "italic" }}>{o.hint}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Thinking strategy */}
+        <div style={{ background: "#0f172a", borderRadius: 10, padding: "10px 14px", border: "1px solid #334155", textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
+            <strong style={{ color: "#cbd5e1" }}>Strategy:</strong> Read the labs and symptoms carefully.
+            Ask yourself: is the sensor detecting correctly? Is the signal being sent? Are the effector organs responding?
+            The component that is <em>not doing its job</em> is your answer.
+          </div>
+        </div>
+      </div>
+      <div style={{ textAlign: "center", marginTop: 16 }}>
+        <button style={{ ...P.go, display: "inline-block", width: "auto", padding: "14px 48px", fontSize: 16 }}
+          onClick={() => { SFX.click(); setHasSeenL3Intro(true); setPhase("playing"); }}
+          onMouseOver={e => e.target.style.transform = "scale(1.03)"} onMouseOut={e => e.target.style.transform = "scale(1)"}>
+          Got it, time to play Level 3! →
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─── GLOSSARY OVERLAY ─────────────────────────────────────────────────
+  const GlossaryOverlay = () => {
+    if (!showGlossary) return null;
+    const q = glossarySearch.toLowerCase();
+    const filtered = q
+      ? GLOSSARY.filter(g => g.term.toLowerCase().includes(q) || g.def.toLowerCase().includes(q))
+      : GLOSSARY;
+    return (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(2,6,23,0.85)", backdropFilter: "blur(6px)",
+        display: "flex", justifyContent: "center", alignItems: "center",
+        padding: 16,
+      }} onClick={() => setShowGlossary(false)}>
+        <div style={{
+          background: "#0f172a", border: "2px solid #334155", borderRadius: 16,
+          width: "100%", maxWidth: 480, maxHeight: "80vh", display: "flex", flexDirection: "column",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+        }} onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #1e293b" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9" }}>📖 Glossary</div>
+              <button onClick={() => setShowGlossary(false)} style={{
+                background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)",
+                borderRadius: 6, padding: "3px 10px", color: "#f87171", fontSize: 11,
+                fontWeight: 600, cursor: "pointer",
+              }}>Close ✕</button>
+            </div>
+            <input
+              type="text" placeholder="Search terms..."
+              value={glossarySearch} onChange={e => setGlossarySearch(e.target.value)}
+              style={{
+                width: "100%", padding: "8px 12px", borderRadius: 8,
+                border: "1px solid #334155", background: "#1e293b", color: "#f1f5f9",
+                fontSize: 13, outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </div>
+          {/* Terms list */}
+          <div style={{ overflowY: "auto", padding: "10px 16px 16px", flex: 1 }}>
+            {filtered.length === 0 && (
+              <div style={{ fontSize: 12, color: "#64748b", textAlign: "center", padding: 20 }}>
+                No matching terms found.
+              </div>
+            )}
+            {filtered.map((g, i) => (
+              <div key={i} style={{
+                padding: "10px 12px", marginBottom: 8, borderRadius: 10,
+                background: "rgba(51,65,85,0.3)", border: "1px solid #1e293b",
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#38bdf8", marginBottom: 4 }}>{g.term}</div>
+                <div style={{ fontSize: 12, lineHeight: 1.5, color: "#cbd5e1" }}>{g.def}</div>
+                {g.related && g.related.length > 0 && (
+                  <div style={{ marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {g.related.map((r, j) => (
+                      <span key={j} onClick={() => setGlossarySearch(r)} style={{
+                        fontSize: 9, padding: "2px 7px", borderRadius: 10,
+                        background: "rgba(56,189,248,0.1)", border: "1px solid rgba(56,189,248,0.2)",
+                        color: "#7dd3fc", cursor: "pointer",
+                      }}>{r}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Glossary toggle button (reusable)
+  const GlossaryBtn = () => (
+    <button onClick={() => { setShowGlossary(true); setGlossarySearch(""); }} style={{
+      background: "rgba(56,189,248,0.08)", border: "1px solid rgba(56,189,248,0.25)",
+      borderRadius: 8, padding: "4px 10px", color: "#7dd3fc", fontSize: 10,
+      fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+    }}
+      onMouseOver={e => e.currentTarget.style.background = "rgba(56,189,248,0.18)"}
+      onMouseOut={e => e.currentTarget.style.background = "rgba(56,189,248,0.08)"}
+    >📖 Glossary</button>
+  );
+
+  // ─── PLAYING ───────────────────────────────────────────────────────────
+  if (phase === "playing" && sc) return (
+    <div style={P.page}>
+      <h1 style={P.title}>CALCIUM CRISIS</h1>
+      <LevelBadge />
+      <Gauge />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {!sc.baseline ? <Stats /> : <div />}
+        <GlossaryBtn />
+      </div>
+      <GlossaryOverlay />
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 280px", minWidth: 270 }}>
+          <Diagram hormone={null} brokenOrgan={level === 3 ? undefined : undefined} />
+        </div>
+        <div style={{ flex: "1 1 300px", minWidth: 260 }}>
+          {/* Scenario */}
+          <div style={{ ...P.card, borderColor: sc.urgent ? "#dc2626" : sc.baseline ? "#22c55e" : "#334155" }}>
+            {sc.urgent && (
+              <div style={{ background: "#dc2626", color: "#fff", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.8, padding: "3px 8px", borderRadius: 4, display: "inline-block", marginBottom: 6 }}>
+                🚨 Emergency
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 30 }}>{sc.emoji}</span>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>{sc.title}</div>
+                <div style={{ fontSize: 10, color: sc.baseline ? "#22c55e" : "#64748b" }}>
+                  {sc.baseline ? "Observe: this is healthy homeostasis" : `Scenario ${idx}/${scenarios.length - 1}`}
+                </div>
+              </div>
+            </div>
+            <p style={{ fontSize: 13, lineHeight: 1.5, color: "#cbd5e1", margin: 0 }}>{sc.desc}</p>
+            {sc.baseline && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 12, lineHeight: 1.6, color: "#94a3b8", marginBottom: 6 }}>{sc.why}</div>
+                <OrganPills organs={sc.organs} />
+              </div>
+            )}
+            {!sc.baseline && !learningMode && (
+              <div style={{ height: 3, borderRadius: 2, background: "#0f172a", marginTop: 8, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 2, background: timer > 10 ? "#22c55e" : timer > 5 ? "#f59e0b" : "#dc2626", width: `${(timer / (level === 3 ? 40 : 35)) * 100}%`, transition: "width 1s linear" }} />
+              </div>
+            )}
+          </div>
+          {/* Buttons */}
+          {sc.baseline ? (
+            <button style={P.go} onClick={() => {
+              SFX.click();
+              setHistory(h => [...h, { title: sc.title, ok: true, out: false, choice: "baseline", ans: "none" }]);
+              setIdx(i => i + 1);
+              if (!learningMode) { setTimer(level === 3 ? 40 : 35); setTicking(true); }
+            }}
+              onMouseOver={e => e.target.style.transform = "scale(1.01)"} onMouseOut={e => e.target.style.transform = "scale(1)"}>
+              Got it, time to go! →
+            </button>
+          ) : level === 1 ? (
+            /* Level 1: PTH vs Calcitonin */
+            <div style={{ display: "flex", gap: 10 }}>
+              {[{ h: "pth", c: "#818cf8", label: "PTH ↑ Ca²⁺", sub: "Bones · Kidneys · Vit D" },
+                { h: "calcitonin", c: "#f472b6", label: "Calcitonin ↓ Ca²⁺", sub: "Bones · Kidneys" }].map(b => (
+                <button key={b.h} aria-label={`Choose ${b.h === "pth" ? "PTH to raise" : "Calcitonin to lower"} blood calcium`} style={P.btn(b.c)} onClick={() => pick(b.h)}
+                  onMouseOver={e => { e.currentTarget.style.background = `${b.c}30`; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                  onMouseOut={e => { e.currentTarget.style.background = `${b.c}30`; e.currentTarget.style.transform = "translateY(0)"; }}>
+                  {b.label}
+                  <div style={{ fontSize: 8, fontWeight: 500, color: "#64748b", marginTop: 3 }}>{b.sub}</div>
+                </button>
+              ))}
+            </div>
+          ) : level === 2 ? (
+            /* Level 2: PTH vs Calcitonin vs Vitamin D */
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[{ h: "pth", c: "#818cf8", label: "PTH ↑ Ca²⁺", sub: "Bones · Kidneys" },
+                { h: "calcitonin", c: "#f472b6", label: "Calcitonin ↓ Ca²⁺", sub: "Bones · Kidneys" },
+                { h: "vitd", c: "#f59e0b", label: "☀️ Vit D", sub: "Supplement to fix intestines" }].map(b => (
+                <button key={b.h} aria-label={`Choose ${b.h === "pth" ? "PTH" : b.h === "calcitonin" ? "Calcitonin" : "Vitamin D supplementation"}`} style={{ ...P.btn(b.c), fontSize: 15, padding: "12px 8px" }} onClick={() => pick(b.h)}
+                  onMouseOver={e => { e.currentTarget.style.background = `${b.c}30`; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                  onMouseOut={e => { e.currentTarget.style.background = `${b.c}30`; e.currentTarget.style.transform = "translateY(0)"; }}>
+                  {b.label}
+                  <div style={{ fontSize: 8, fontWeight: 500, color: "#64748b", marginTop: 3 }}>{b.sub}</div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            /* Level 3: Where is the loop broken? */
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#f472b6", textAlign: "center", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                🔗 Where is the feedback loop broken?
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {[{ h: "parathyroid", c: "#818cf8", icon: "🔔", label: "Parathyroid", sub: "Ca²⁺ sensor" },
+                  { h: "kidneys", c: "#38bdf8", icon: "🫘", label: "Kidneys", sub: "Vit D activator + filter" },
+                  { h: "gut", c: "#4ade80", icon: "🍽️", label: "Intestines", sub: "Ca²⁺ absorber" },
+                  { h: "bones", c: "#f59e0b", icon: "🦴", label: "Bones", sub: "Ca²⁺ reservoir" }].map(b => (
+                  <button key={b.h} aria-label={`The ${b.label} is broken`} onClick={() => pick(b.h)}
+                    onMouseOver={e => { e.currentTarget.style.background = `${b.c}25`; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                    onMouseOut={e => { e.currentTarget.style.background = `${b.c}10`; e.currentTarget.style.transform = "translateY(0)"; }}
+                    style={{
+                      padding: "12px 10px", borderRadius: 12, border: `2px solid ${b.c}`, background: `${b.c}10`,
+                      color: "#f1f5f9", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all 0.15s", textAlign: "center",
+                    }}>
+                    <div style={{ fontSize: 22 }}>{b.icon}</div>
+                    {b.label}
+                    <div style={{ fontSize: 8, fontWeight: 500, color: "#64748b", marginTop: 2 }}>{b.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ─── FEEDBACK ──────────────────────────────────────────────────────────
+  if (phase === "feedback" && fb) {
+    const ans = answerLabel(fb.sc.correct);
+    return (
+      <div style={P.page}>
+        <h1 style={P.title}>CALCIUM CRISIS</h1>
+        <LevelBadge />
+        <Gauge />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -4 }}><GlossaryBtn /></div>
+        <GlossaryOverlay />
+        <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 280px", minWidth: 270 }}>
+            <Diagram
+              hormone={level <= 2 ? hormone : null}
+              brokenOrgan={level === 3 ? brokenHighlight : undefined}
+            />
+          </div>
+          <div style={{ flex: "1 1 300px", minWidth: 260 }}>
+            <div style={{
+              ...P.card,
+              borderColor: fb.sc.urgent ? "#dc2626" : fb.ok ? "#22c55e" : "#dc2626", borderWidth: fb.sc.urgent ? 3 : 2,
+              background: fb.sc.urgent ? "rgba(220,38,38,0.1)" : fb.ok ? "rgba(34,197,94,0.06)" : "rgba(220,38,38,0.06)",
+            }}>
+              {fb.sc.urgent && (
+                <div style={{ background: "#dc2626", color: "#fff", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, padding: "4px 10px", borderRadius: 6, marginBottom: 8, display: "inline-block" }}>
+                  🚨 Acute Emergency: Immediate Intervention Required
+                </div>
+              )}
+              <div style={{ fontSize: 18, fontWeight: 800, color: fb.ok ? "#22c55e" : "#dc2626", marginBottom: 4 }}>
+                {fb.out ? "⏰ Time's up" : fb.ok ? `✓ +${fb.pts}${fb.ns > 1 ? ` (${fb.ns}x)` : ""}` : "✗ Not quite"}
+              </div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6 }}>
+                Answer: <strong style={{ color: ans.color }}>{ans.text}</strong>
+              </div>
+              {/* Hint system: wrong answers show hint first, then expandable full explanation */}
+              {!fb.ok && !showFullWhy ? (
+                <div>
+                  <div style={{ fontSize: 12, lineHeight: 1.6, color: "#fbbf24", fontStyle: "italic", marginBottom: 6 }}>
+                    💡 {getHint(fb.sc, fb.choice)}
+                  </div>
+                  <button onClick={() => setShowFullWhy(true)} style={{ background: "none", border: "1px solid #334155", borderRadius: 6, padding: "4px 10px", color: "#94a3b8", fontSize: 10, cursor: "pointer" }}>
+                    Show full explanation ▸
+                  </button>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, lineHeight: 1.6, color: "#cbd5e1" }}>{fb.sc.why}</div>
+              )}
+              <OrganPills organs={fb.sc.organs} />
+              {/* Counseling step for scenarios with access barriers */}
+              {fb.sc.counselQ && (
+                <div style={{ marginTop: 8 }}>
+                  {!showCounsel ? (
+                    <button onClick={() => setShowCounsel(true)} style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 8, padding: "6px 12px", color: "#a78bfa", fontSize: 10, fontWeight: 600, cursor: "pointer", width: "100%" }}>
+                      🩺 Clinical thinking: What would you recommend for this patient?
+                    </button>
+                  ) : (
+                    <div style={{ background: "rgba(168,85,247,0.06)", borderRadius: 8, padding: "8px 12px", border: "1px solid rgba(168,85,247,0.2)" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#a78bfa", marginBottom: 4 }}>🩺 COUNSELING CONSIDERATION</div>
+                      <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>{fb.sc.counselQ}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <button style={P.go} onClick={next}
+              onMouseOver={e => e.target.style.transform = "scale(1.01)"} onMouseOut={e => e.target.style.transform = "scale(1)"}>
+              {idx + 1 >= scenarios.length ? "Results →" : "Next →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── RESULTS ───────────────────────────────────────────────────────────
+  if (phase === "results") {
+    const scored = history.filter(h => h.choice !== "baseline");
+    const ok = scored.filter(h => h.ok).length;
+    const pct = scored.length > 0 ? Math.round((ok / scored.length) * 100) : 0;
+    const g = pct === 100 ? { e: "🏆", l: "Homeostasis Master", c: "#22c55e" }
+      : pct >= 75 ? { e: "🌟", l: "Strong Regulator", c: "#38bdf8" }
+      : pct >= 50 ? { e: "📈", l: "Building Understanding", c: "#f59e0b" }
+      : { e: "🔬", l: "Keep Reviewing", c: "#f472b6" };
+    const canUnlockNext = reflectPick && level < 3 && !unlocked.includes(level + 1);
+    const lv = LEVELS[level - 1];
+
+    // Reflection questions per level
+    const reflections = level === 1
+      ? [{ k: "diet", l: "🍽️ Diet alone" }, { k: "meds", l: "💊 Medications" }, { k: "equity", l: "⚖️ Skin tone, geography & lifestyle" }, { k: "surgery", l: "🏥 Surgical damage" }]
+      : level === 2
+      ? [{ k: "vitd", l: "☀️ Vitamin D status" }, { k: "access", l: "💰 Access to care" }, { k: "context", l: "🏠 Patient's life context" }, { k: "organs", l: "🫘 Organ function" }]
+      : [{ k: "where", l: "🔍 Where the loop breaks" }, { k: "who", l: "⚖️ Who gets diagnosed fast" }, { k: "both", l: "🔗 Both: biology + access" }, { k: "signal", l: "📡 The signal itself" }];
+
+    const reflectResponse = (pick) => {
+      if (level === 1) {
+        if (pick === "equity") return "✓ Great insight. Melanin, latitude, occupation, and food access create Vitamin D disparities that compound over a lifetime. Biology does not change; circumstances do.";
+        if (pick === "meds") return "Medications matter, but consider: who has access to monitoring? Structural factors often determine which patients get caught early and which do not.";
+        if (pick === "surgery") return "Acute emergencies are dramatic, but chronic conditions driven by lifestyle and geography affect far more people. Think about who is at risk and why.";
+        return "Diet contributes, but the bigger question is: who has access to varied, calcium-rich foods? Food insecurity is a hidden calcium crisis.";
+      }
+      if (level === 2) {
+        if (pick === "vitd") return "Vitamin D is biologically central, but ask: who has enough of it? Geography, skin tone, income, and food access determine Vitamin D status before any hormone kicks in.";
+        if (pick === "access") return "✓ Knowing you need Vitamin D does not help if you cannot afford supplements, reach a doctor, or read the label. Access determines outcomes.";
+        if (pick === "context") return "✓ A patient's life (job, insurance, language, housing) shapes whether the 'right' treatment actually works. Biology in a vacuum does not exist.";
+        return "Organ function matters, but a healthy organ in a patient who cannot afford follow-up care is still a patient at risk.";
+      }
+      // Level 3
+      if (pick === "both") return "✓ Exactly. The same broken loop produces different outcomes depending on who the patient is. Finding the break is step one; ensuring the patient can access treatment is step two.";
+      if (pick === "where") return "Finding the break is essential, but two patients with the same broken loop can have very different outcomes depending on insurance, geography, and timing of diagnosis.";
+      if (pick === "who") return "Diagnosis speed depends on access to specialists, genetic testing, and provider awareness. The biology is identical; the timeline is not.";
+      return "The signal matters, but in most cases the issue is at the sensor or effector, not the hormone itself. And who gets diagnosed depends on access.";
+    };
+
+    return (
+      <div style={P.page}>
+        <h1 style={{ ...P.title, fontSize: 28, marginTop: 12 }}>CALCIUM CRISIS</h1>
+        <LevelBadge />
+        <div style={{ ...P.card, textAlign: "center", padding: "24px 20px", marginTop: 10 }}>
+          <div style={{ fontSize: 48 }}>{g.e}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: g.c, marginBottom: 12 }}>{g.l}</div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 16 }}>
+            {[{ n: score, l: "Points" }, { n: `${ok}/${scored.length}`, l: "Correct" }, { n: best, l: "Streak" }].map((s, i) => (
+              <div key={i} style={{ background: "#0f172a", borderRadius: 10, padding: "12px 20px" }}>
+                <div style={{ fontSize: 24, fontWeight: 800, color: lv.color }}>{s.n}</div>
+                <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+          {/* History dots */}
+          <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", marginBottom: 16 }}>
+            {history.map((h, i) => {
+              const isBase = h.choice === "baseline";
+              return (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 6,
+                  background: isBase ? "rgba(129,140,248,0.06)" : h.ok ? "rgba(34,197,94,0.08)" : "rgba(220,38,38,0.08)",
+                }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: isBase ? "#818cf8" : h.ok ? "#22c55e" : "#dc2626" }} />
+                  <span style={{ fontSize: 11, color: "#cbd5e1" }}>{isBase ? "Baseline ⚖️" : h.title}</span>
+                </div>
+              );
+            })}
+          </div>
+          {/* Takeaway + Reflection */}
+          <div style={{ background: "#0f172a", borderRadius: 10, padding: "12px 14px", textAlign: "left", border: "1px solid #334155" }}>
+            {level === 1 && (
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#22c55e", marginBottom: 4 }}>🧠 HOMEOSTASIS</div>
+                  <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>
+                    <strong style={{ color: "#818cf8" }}>PTH ↑ Ca²⁺</strong>: kidneys save Ca²⁺ + activate <strong style={{ color: "#f59e0b" }}>Vit D</strong> → intestines absorb more → bones release reserves.
+                    <br /><strong style={{ color: "#f472b6" }}>Calcitonin ↓ Ca²⁺</strong>: kidneys excrete, bones store, Vit D stays off.
+                  </div>
+                </div>
+                <div style={{ flex: "1 1 200px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>⚖️ EQUITY</div>
+                  <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>
+                    Vit D depends on UV-B → melanin (~50% reduced synthesis), latitude, sunscreen, and lifestyle create real health disparities. Supplementation (2000 IU/day) is evidence-based.
+                  </div>
+                </div>
+              </div>
+            )}
+            {level === 2 && (
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>☀️ VITAMIN D ROLE</div>
+                  <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>
+                    Vitamin D is the key that unlocks intestinal absorption. Without it, PTH cannot fully compensate. Many conditions (CKD, celiac, malabsorption, aging) break the Vit D pathway, not just low sun exposure.
+                  </div>
+                </div>
+                <div style={{ flex: "1 1 200px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#818cf8", marginBottom: 4 }}>🩺 CLINICAL</div>
+                  <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>
+                    Choosing the right intervention matters: giving PTH when the problem is Vit D deficiency would accelerate bone loss. Giving active Vitamin D directly bypasses kidney failure. Context determines treatment.
+                  </div>
+                </div>
+              </div>
+            )}
+            {level === 3 && (
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#f472b6", marginBottom: 4 }}>🔗 LOOP ANALYSIS</div>
+                  <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>
+                    Every feedback loop has sensors, signals, and effectors. Finding WHERE the loop is broken is the key to diagnosis. The same symptom (low Ca²⁺) can have very different causes depending on which component failed.
+                  </div>
+                </div>
+                <div style={{ flex: "1 1 200px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#38bdf8", marginBottom: 4 }}>🧠 SYSTEMS THINKING</div>
+                  <div style={{ fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>
+                    A broken sensor (parathyroid adenoma) vs a broken effector (CKD kidneys) vs a broken absorber (celiac intestines) all produce abnormal Ca²⁺ but require completely different treatments. Diagnosis before treatment.
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Interactive reflection */}
+            <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, background: `${lv.color}08`, border: `1px solid ${lv.color}20` }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: lv.color, marginBottom: 6, textAlign: "center" }}>💭 REFLECT TO CONTINUE</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>
+                {level === 1 ? "Which factor had the biggest impact on calcium balance?"
+                  : level === 2 ? "What matters most for whether a patient gets better?"
+                  : "What determines patient outcomes when the feedback loop breaks?"}
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                {reflections.map(r => (
+                  <button key={r.k} onClick={() => { setReflectPick(r.k); if (level === 3) SFX.celebrate(); else SFX.click(); }} style={{
+                    padding: "6px 12px", borderRadius: 8, fontSize: 10, fontWeight: 600, cursor: "pointer",
+                    border: `1.5px solid ${reflectPick === r.k ? lv.color : "#334155"}`,
+                    background: reflectPick === r.k ? `${lv.color}18` : "transparent",
+                    color: reflectPick === r.k ? lv.color : "#94a3b8", transition: "all 0.15s",
+                  }}>{r.l}</button>
+                ))}
+              </div>
+              {reflectPick && (
+                <div style={{ marginTop: 8, fontSize: 11, color: "#cbd5e1", lineHeight: 1.5, textAlign: "center" }}>
+                  {reflectResponse(reflectPick)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Level 3 completion celebration */}
+          {level === 3 && reflectPick && (
+            <div style={{
+              marginTop: 14, padding: "16px 20px", borderRadius: 12, textAlign: "center",
+              background: "linear-gradient(135deg, rgba(250,204,21,0.12), rgba(168,85,247,0.12), rgba(34,197,94,0.12))",
+              border: "1.5px solid rgba(250,204,21,0.3)",
+            }}>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>🏆</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#fbbf24", marginBottom: 4 }}>
+                Calcium Crisis: Mastered!
+              </div>
+              <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.5, maxWidth: 400, margin: "0 auto" }}>
+                You completed all three levels of calcium homeostasis. From healthy baselines to clinical interventions to diagnosing broken feedback loops, you now have a systems-level understanding of how the body regulates calcium.
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 10, marginTop: 14, justifyContent: "center", flexWrap: "wrap" }}>
+            <button style={{ ...P.go, flex: "1 1 auto", maxWidth: 200 }}
+              onClick={() => { SFX.click(); startLevel(level); }}>
+              Replay Level {level} →
+            </button>
+            {canUnlockNext && (
+              <button style={{ ...P.go, flex: "1 1 auto", maxWidth: 240, background: `linear-gradient(90deg, ${LEVELS[level].color}, ${LEVELS[level - 1].color})` }}
+                onClick={() => {
+                  const nextLvl = level + 1;
+                  setUnlocked(u => [...u, nextLvl]);
+                  setLevelScores(ls => ({ ...ls, [level]: { ok, total: scored.length, pct } }));
+                  setUnlockLevel(nextLvl);
+                  setPhase("unlock");
+                  SFX.unlock();
+                }}>
+                Unlock Level {level + 1} 🔓
+              </button>
+            )}
+            {!reflectPick && level < 3 && !unlocked.includes(level + 1) && (
+              <div style={{ fontSize: 11, color: "#f59e0b", padding: "10px 14px", background: "rgba(245,158,11,0.08)", borderRadius: 8, border: "1px solid rgba(245,158,11,0.2)" }}>
+                ↑ Answer the reflection question above to unlock Level {level + 1}
+              </div>
+            )}
+            {!canUnlockNext && unlocked.includes(level + 1) && level < 3 && (
+              <button style={{ ...P.go, flex: "1 1 auto", maxWidth: 200, background: `linear-gradient(90deg, ${LEVELS[level].color}, ${LEVELS[level - 1].color})` }}
+                onClick={() => {
+                  SFX.click();
+                  setLevelScores(ls => ({ ...ls, [level]: { ok, total: scored.length, pct } }));
+                  startLevel(level + 1);
+                }}>
+                Play Level {level + 1} →
+              </button>
+            )}
+            <button onClick={() => {
+              SFX.click();
+              setLevelScores(ls => ({ ...ls, [level]: { ok, total: scored.length, pct } }));
+              setPhase("levelSelect"); setCa(10); setTargetCa(10); setHormone(null); setBrokenHighlight(null); setReflectPick(null);
+            }} style={{ background: "none", border: "1px solid #334155", borderRadius: 10, padding: "12px 20px", color: "#94a3b8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              Level Select
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<CalciumCrisis />);
+  </script>
+</body>
+</html>
