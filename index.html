@@ -542,7 +542,7 @@ function Diagram({ hormone, brokenOrgan }) {
           {f.b2bl > 0 && <Particles pathId="b2bl" count={f.b2bl} color="#fbbf24" speed={f.b2bl > 3 ? 1.4 : 2.5} size={f.b2bl > 3 ? 4 : 3} />}
           {f.bl2b > 0 && <Particles pathId="bl2b" count={f.bl2b} color="#38bdf8" speed={f.bl2b > 3 ? 1.4 : 2.5} size={f.bl2b > 3 ? 4 : 3} />}
           {f.g2bl > 0 && <Particles pathId="g2bl" count={f.g2bl} color="#4ade80" speed={f.g2bl > 3 ? 1.3 : 2.5} size={f.g2bl > 3 ? 4.5 : 3} />}
-          {f.g2f > 0 && <Particles pathId="g2f" count={f.g2f} color="#a1887f" speed={f.g2f > 3 ? 1.8 : 2.8} size={3} />}
+          {f.g2f > 0 && <Particles pathId="g2f" count={f.g2f} color="#fbbf24" speed={f.g2f > 3 ? 1.8 : 2.8} size={3} />}
           {f.k2u > 0 && <Particles pathId="k2u" count={f.k2u} color="#fbbf24" speed={f.k2u > 3 ? 1.5 : 2.8} size={f.k2u > 3 ? 4 : 3} />}
           {f.k2bl > 0 && <Particles pathId="k2bl" count={f.k2bl} color="#38bdf8" speed={f.k2bl > 3 ? 1.4 : 2.5} size={f.k2bl > 3 ? 4 : 3} />}
           {f.k2v > 0 && <Particles pathId="k2v" count={f.k2v} color="#f59e0b" speed={f.k2v > 3 ? 1.2 : 2.5} size={f.k2v > 3 ? 5 : 3} shape="star" />}
@@ -552,9 +552,8 @@ function Diagram({ hormone, brokenOrgan }) {
         <g transform="translate(255,350)">
           <circle cx="4" cy="6" r="2" fill="#fbbf24" /><text x="10" y="9" fill="#64748b" fontSize="7">Ca²⁺ out</text>
           <circle cx="4" cy="18" r="2" fill="#38bdf8" /><text x="10" y="21" fill="#64748b" fontSize="7">Ca²⁺ in</text>
-          <circle cx="70" cy="6" r="2" fill="#4ade80" /><text x="76" y="9" fill="#64748b" fontSize="7">absorbed</text>
-          <polygon points="70,15 71.5,17.5 74,18 71.5,19.5 72,22 70,20.5 68,22 68.5,19.5 66,18 68.5,17.5" fill="#f59e0b" />
-          <text x="76" y="21" fill="#f59e0b" fontSize="7" fontWeight="600">★ Vit D signal</text>
+          <circle cx="70" cy="6" r="2" fill="#4ade80" /><text x="76" y="9" fill="#64748b" fontSize="7">Ca²⁺ absorbed</text>
+          <text x="70" y="21" fill="#f59e0b" fontSize="7" fontWeight="600">★ Vit D signal</text>
         </g>
       </svg>
     </div>
