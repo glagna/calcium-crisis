@@ -539,20 +539,21 @@ function Diagram({ hormone, brokenOrgan }) {
         <line x1="190" y1="190" x2="170" y2="230" stroke="#7f1d1d" strokeWidth="1.5" opacity="0.3" strokeDasharray="3,2" />
         {/* Particles */}
         <g filter="url(#gl)">
-          {f.b2bl > 0 && <Particles pathId="b2bl" count={f.b2bl} color="#fbbf24" speed={f.b2bl > 3 ? 1.4 : 2.5} size={f.b2bl > 3 ? 4 : 3} />}
-          {f.bl2b > 0 && <Particles pathId="bl2b" count={f.bl2b} color="#38bdf8" speed={f.bl2b > 3 ? 1.4 : 2.5} size={f.bl2b > 3 ? 4 : 3} />}
+          {f.b2bl > 0 && <Particles pathId="b2bl" count={f.b2bl} color="#38bdf8" speed={f.b2bl > 3 ? 1.4 : 2.5} size={f.b2bl > 3 ? 4 : 3} />}
+          {f.bl2b > 0 && <Particles pathId="bl2b" count={f.bl2b} color="#fbbf24" speed={f.bl2b > 3 ? 1.4 : 2.5} size={f.bl2b > 3 ? 4 : 3} />}
           {f.g2bl > 0 && <Particles pathId="g2bl" count={f.g2bl} color="#38bdf8" speed={f.g2bl > 3 ? 1.3 : 2.5} size={f.g2bl > 3 ? 4.5 : 3} />}
-          {f.g2f > 0 && <Particles pathId="g2f" count={f.g2f} color="#fbbf24" speed={f.g2f > 3 ? 1.8 : 2.8} size={3} />}
-          {f.k2u > 0 && <Particles pathId="k2u" count={f.k2u} color="#fbbf24" speed={f.k2u > 3 ? 1.5 : 2.8} size={f.k2u > 3 ? 4 : 3} />}
+          {f.g2f > 0 && <Particles pathId="g2f" count={f.g2f} color="#f87171" speed={f.g2f > 3 ? 1.8 : 2.8} size={3} />}
+          {f.k2u > 0 && <Particles pathId="k2u" count={f.k2u} color="#f87171" speed={f.k2u > 3 ? 1.5 : 2.8} size={f.k2u > 3 ? 4 : 3} />}
           {f.k2bl > 0 && <Particles pathId="k2bl" count={f.k2bl} color="#38bdf8" speed={f.k2bl > 3 ? 1.4 : 2.5} size={f.k2bl > 3 ? 4 : 3} />}
           {f.k2v > 0 && <Particles pathId="k2v" count={f.k2v} color="#f59e0b" speed={f.k2v > 3 ? 1.2 : 2.5} size={f.k2v > 3 ? 5 : 3} shape="star" />}
           {f.v2g > 0 && <Particles pathId="v2g" count={f.v2g} color="#f59e0b" speed={f.v2g > 3 ? 1.6 : 2.8} size={f.v2g > 3 ? 4.5 : 3} shape="star" />}
         </g>
         {/* Legend */}
-        <g transform="translate(255,350)">
-          <circle cx="4" cy="6" r="2" fill="#fbbf24" /><text x="10" y="9" fill="#64748b" fontSize="7">Ca²⁺ out</text>
-          <circle cx="4" cy="18" r="2" fill="#38bdf8" /><text x="10" y="21" fill="#64748b" fontSize="7">Ca²⁺ in</text>
-          <text x="70" y="9" fill="#f59e0b" fontSize="7" fontWeight="600">★ Vit D signal</text>
+        <g transform="translate(245,345)">
+          <circle cx="4" cy="6" r="2" fill="#38bdf8" /><text x="10" y="9" fill="#64748b" fontSize="7">Ca²⁺ to blood</text>
+          <circle cx="4" cy="18" r="2" fill="#fbbf24" /><text x="10" y="21" fill="#64748b" fontSize="7">Ca²⁺ to bones</text>
+          <circle cx="80" cy="6" r="2" fill="#f87171" /><text x="86" y="9" fill="#64748b" fontSize="7">Ca²⁺ excreted</text>
+          <text x="80" y="21" fill="#f59e0b" fontSize="7" fontWeight="600">★ Vit D signal</text>
         </g>
       </svg>
     </div>
